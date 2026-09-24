@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import enum
 import subprocess
+from urllib.parse import quote_plus
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -35,13 +36,19 @@ from app.ui.widgets import Segmentado, rotulo
 # Duas páginas possíveis: A4 para imprimir e uma estreita que enche a tela do
 # celular sem precisar dar zoom.
 FORMATOS = {
-    "A4": dict(tamanho=QPageSize(QPageSize.PageSizeId.A4), margem=14.0, base=10.5),
+    "A4": dict(tamanho=QPageSize(QPageSize.PageSizeId.A4), margem=15.0, base=11.5),
     "Celular": dict(
         tamanho=QPageSize(QSizeF(95.0, 170.0), QPageSize.Unit.Millimeter),
         margem=7.0,
-        base=9.0,
+        base=9.5,
     ),
 }
+
+# O desenho é feito numa grade de 300 dpi em vez dos 72 dpi de um ponto. Não é
+# o texto que muda — ele é vetorial dos dois jeitos —, são os fios: "1px" a
+# 72 dpi vira um traço de 0,34 mm, grosso; a 300 dpi vira fio de 0,085 mm.
+RESOLUCAO = 300
+ESCALA = RESOLUCAO / 72.0
 
 
 class FormatoPdf:
@@ -73,14 +80,119 @@ def _endereco(evento: Evento) -> str:
     return f"{evento.endereco.tipo.value}: {evento.endereco.resumo()}"
 
 
+def _mapa(evento: Evento) -> str | None:
+    """Link que o celular abre no mapa/GPS."""
+    endereco = evento.endereco
+    if endereco is None:
+        return None
+    partes = [
+        p for p in (
+            f"{endereco.logradouro or ''} {endereco.numero or ''}".strip(),
+            endereco.bairro,
+            endereco.cidade,
+            endereco.cep,
+        ) if p
+    ]
+    if not partes:
+        return None
+    consulta = quote_plus(", ".join(partes))
+    # &amp; porque isto entra num documento HTML.
+    return f"https://www.google.com/maps/search/?api=1&amp;query={consulta}"
+
+
+def _bloco_servico(evento: Evento, b: float, fio: str) -> str:
+    """Um serviço: quem é, onde, como tratar e o que foi combinado."""
+    cor, _ = cores_da_etiqueta(evento.tipo_servico.estilo)
+    cancelado = evento.status is StatusEvento.CANCELADO
+    risco = "text-decoration: line-through;" if cancelado else "text-decoration: none;"
+    cliente = evento.cliente
+
+    linhas = [
+        f'<span style="font-size:{b * 0.95:.2f}pt; font-weight:600; color:{cor};'
+        f' {risco}">{_escapar(evento.tipo_servico.nome)}</span>'
+        f'<span style="font-size:{b * 1.1:.2f}pt; font-weight:600;'
+        f' color:{CORES["tinta"]}; {risco}">'
+        f"&nbsp;&nbsp;{_escapar(cliente.nome)}</span>"
+    ]
+
+    if cliente.apelido and cliente.apelido.strip() != cliente.nome.strip():
+        linhas.append(
+            f'<div style="font-size:{b * 0.85:.2f}pt; color:{CORES["tinta_media"]};">'
+            f"Tratar por <b>{_escapar(cliente.apelido)}</b></div>"
+        )
+
+    if evento.endereco is not None:
+        endereco = _escapar(
+            f"{evento.endereco.tipo.value}: {evento.endereco.resumo()}"
+        )
+        mapa = _mapa(evento)
+        if mapa:
+            linhas.append(
+                f'<div style="font-size:{b * 0.88:.2f}pt;">'
+                f'<a href="{mapa}" style="color:{CORES["azul"]};'
+                f' text-decoration: none;">{endereco}</a>'
+                f'<span style="color:{CORES["azul"]}; font-size:{b * 0.8:.2f}pt;">'
+                "&nbsp;&nbsp;↗ abrir no mapa</span></div>"
+            )
+        else:
+            linhas.append(
+                f'<div style="font-size:{b * 0.88:.2f}pt;'
+                f' color:{CORES["tinta_media"]};">{endereco}</div>'
+            )
+    else:
+        linhas.append(
+            f'<div style="font-size:{b * 0.88:.2f}pt; color:{CORES["tinta_fraca"]};">'
+            "Endereço não informado</div>"
+        )
+
+    rodape = [evento.status.value]
+    if evento.solicitante is not None:
+        rodape.append(f"Pedido por {evento.solicitante.nome_exibicao}")
+    if cliente.telefone:
+        rodape.append(cliente.telefone)
+    linhas.append(
+        f'<div style="font-size:{b * 0.82:.2f}pt; color:{CORES["tinta_fraca"]};">'
+        f"{_escapar(' · '.join(rodape))}</div>"
+    )
+
+    observacoes = [
+        texto.strip()
+        for texto in (
+            cliente.observacao,
+            evento.endereco.observacao if evento.endereco is not None else None,
+        )
+        if texto and texto.strip()
+    ]
+    for texto in observacoes:
+        linhas.append(
+            f'<div style="font-size:{b * 0.84:.2f}pt; color:{CORES["tinta"]};'
+            f' background:{CORES["cinza_claro"]};">'
+            f"&nbsp;Obs.: {_escapar(texto)}&nbsp;</div>"
+        )
+
+    return (
+        f'<tr><td width="{int(22 * ESCALA)}" valign="top"'
+        f' style="font-size:{b * 1.25:.2f}pt; color:{CORES["tinta_fraca"]};">'
+        "&#9744;</td>"
+        f'<td valign="top" style="border-bottom:{fio} solid {CORES["pauta"]};">'
+        + "".join(linhas)
+        + "</td></tr>"
+    )
+
+
 def montar_html(titulo: str, dias: list[tuple[date, list[Evento]]], base: float) -> str:
     """Monta o documento. O mesmo HTML serve aos dois formatos, em corpos diferentes."""
+    b = base * ESCALA
+    fio = f"{max(1, round(ESCALA * 0.35))}px"
+    fio_forte = f"{max(1, round(ESCALA * 0.5))}px"
+    espaco = round(b * 0.9)
+
     partes = [
         f"""<html><body>
-        <div style="font-size:{base * 1.5:.1f}pt; font-weight:600;
+        <div style="font-size:{b * 1.55:.2f}pt; font-weight:600;
                     color:{CORES['tinta']};">Agenda do motoboy</div>
-        <div style="font-size:{base * 1.05:.1f}pt; color:{CORES['tinta_media']};
-                    margin-bottom:{base * 0.9:.0f}px;">{_escapar(titulo)}</div>
+        <div style="font-size:{b * 1.05:.2f}pt; color:{CORES['tinta_media']};
+                    margin-bottom:{espaco}px;">{_escapar(titulo)}</div>
         """
     ]
 
@@ -90,18 +202,17 @@ def montar_html(titulo: str, dias: list[tuple[date, list[Evento]]], base: float)
     for dia, eventos in dias:
         if repetir_data:
             partes.append(
-                f'<div style="font-size:{base * 1.1:.1f}pt; font-weight:600;'
-                f' color:{CORES["tinta"]}; margin-top:{base:.0f}px;">'
+                f'<div style="font-size:{b * 1.15:.2f}pt; font-weight:600;'
+                f' color:{CORES["tinta"]}; margin-top:{espaco}px;">'
                 f"{_escapar(data_por_extenso(dia).capitalize())}</div>"
-                f'<hr style="border:0; border-top:1px solid {CORES["pauta_forte"]};">'
             )
-        else:
-            partes.append(
-                f'<hr style="border:0; border-top:1px solid {CORES["pauta_forte"]};">'
-            )
+        partes.append(
+            f'<hr style="border:0; border-top:{fio_forte} solid'
+            f' {CORES["pauta_forte"]};">'
+        )
         if not eventos:
             partes.append(
-                f'<div style="font-size:{base:.1f}pt; color:{CORES["tinta_fraca"]};">'
+                f'<div style="font-size:{b:.2f}pt; color:{CORES["tinta_fraca"]};">'
                 "Nenhum serviço marcado.</div>"
             )
             continue
@@ -111,46 +222,23 @@ def montar_html(titulo: str, dias: list[tuple[date, list[Evento]]], base: float)
             if not do_periodo:
                 continue
             partes.append(
-                f'<div style="font-size:{base * 0.8:.1f}pt; font-weight:600;'
-                f' color:{CORES["tinta_fraca"]}; margin-top:{base * 0.6:.0f}px;">'
+                f'<div style="font-size:{b * 0.78:.2f}pt; font-weight:600;'
+                f' color:{CORES["tinta_fraca"]}; margin-top:{round(espaco * 0.7)}px;">'
                 f"{ROTULO_PERIODO[periodo]}</div>"
             )
-            partes.append('<table cellspacing="0" cellpadding="4" width="100%">')
+            partes.append(
+                f'<table cellspacing="0" cellpadding="{round(5 * ESCALA)}"'
+                ' width="100%">'
+            )
             for evento in do_periodo:
                 total += 1
-                cor, _ = cores_da_etiqueta(evento.tipo_servico.estilo)
-                # "none" explícito: sem ele o Qt sublinha o trecho colorido.
-                risco = (
-                    "text-decoration: line-through;"
-                    if evento.status is StatusEvento.CANCELADO
-                    else "text-decoration: none;"
-                )
-                solicitante = (
-                    f" · Pedido por {_escapar(evento.solicitante.nome_exibicao)}"
-                    if evento.solicitante
-                    else ""
-                )
-                partes.append(
-                    f'<tr><td width="18" valign="top" style="font-size:{base * 1.2:.1f}pt;'
-                    f' color:{CORES["tinta_fraca"]};">&#9744;</td>'
-                    f'<td valign="top" style="border-bottom:1px solid {CORES["pauta"]};">'
-                    f'<span style="font-size:{base:.1f}pt; font-weight:600;'
-                    f' color:{cor}; {risco}">{_escapar(evento.tipo_servico.nome)}</span>'
-                    f'<span style="font-size:{base:.1f}pt; color:{CORES["tinta"]};'
-                    f' {risco}"> &nbsp;{_escapar(evento.cliente.nome_exibicao)}</span>'
-                    f'<div style="font-size:{base * 0.85:.1f}pt;'
-                    f' color:{CORES["tinta_media"]};">{_escapar(_endereco(evento))}</div>'
-                    f'<div style="font-size:{base * 0.85:.1f}pt;'
-                    f' color:{CORES["tinta_fraca"]};">'
-                    f"{_escapar(evento.status.value)}{solicitante}"
-                    f"{_escapar(_telefone(evento))}</div></td></tr>"
-                )
+                partes.append(_bloco_servico(evento, b, fio))
             partes.append("</table>")
 
     emitido = date.today().strftime("%d/%m/%Y")
     partes.append(
-        f'<div style="font-size:{base * 0.8:.1f}pt; color:{CORES["tinta_fraca"]};'
-        f' margin-top:{base * 1.2:.0f}px;">{total} serviço(s) · emitido em {emitido}</div>'
+        f'<div style="font-size:{b * 0.78:.2f}pt; color:{CORES["tinta_fraca"]};'
+        f' margin-top:{espaco}px;">{total} serviço(s) · emitido em {emitido}</div>'
         "</body></html>"
     )
     return "".join(partes)
@@ -163,9 +251,10 @@ def _telefone(evento: Evento) -> str:
 def gerar_pdf(caminho: str | Path, titulo: str, dias, formato: str) -> Path:
     """Desenha o documento num PDF vetorial — nítido em qualquer ampliação.
 
-    A resolução fica em 72 dpi de propósito: é o que faz 1 ponto do HTML valer
-    1 unidade da página, e o texto sair no corpo certo. Não é qualidade de
-    imagem — o PDF é vetorial, o texto não rasteriza.
+    O desenho acontece numa grade de 300 dpi, e os corpos de texto já vêm
+    multiplicados por essa escala (ver ESCALA). O ganho está nos fios das
+    réguas e no posicionamento das letras: o texto em si é vetorial e não
+    rasteriza em nenhuma resolução.
     """
     ajustes = FORMATOS[formato]
     destino = Path(caminho)
@@ -176,11 +265,11 @@ def gerar_pdf(caminho: str | Path, titulo: str, dias, formato: str) -> Path:
     escritor.setPageMargins(
         QMarginsF(*([ajustes["margem"]] * 4)), QPageLayout.Unit.Millimeter
     )
-    escritor.setResolution(72)
+    escritor.setResolution(RESOLUCAO)
     escritor.setTitle(titulo)
 
     documento = QTextDocument()
-    documento.setDefaultFont(QFont("Inter", int(ajustes["base"])))
+    documento.setDefaultFont(QFont("Inter", round(ajustes["base"] * ESCALA)))
     documento.setHtml(montar_html(titulo, dias, ajustes["base"]))
     documento.setPageSize(
         QSizeF(escritor.width(), escritor.height())

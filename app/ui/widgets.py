@@ -135,6 +135,11 @@ class Segmentado(QFrame):
         botao = self._botoes.get(valor)
         (botao or self._botoes[self._membros[0]]).setChecked(True)
 
+    def somente_leitura(self, valor: bool) -> None:
+        """Mostra a opção escolhida sem deixar trocar."""
+        for botao in self._botoes.values():
+            botao.setEnabled(not valor)
+
 
 def configurar_tabela(
     tabela: QTableWidget,
@@ -258,6 +263,18 @@ class EnderecoForm(QFrame):
         self.cidade.setText(endereco.cidade or "")
         self.cep.setText(endereco.cep or "")
         self.observacao.setPlainText(endereco.observacao or "")
+
+    def somente_leitura(self, valor: bool) -> None:
+        for campo in (
+            self.logradouro,
+            self.numero,
+            self.complemento,
+            self.bairro,
+            self.cidade,
+            self.cep,
+        ):
+            campo.setReadOnly(valor)
+        self.observacao.setReadOnly(valor)
 
     def dados(self) -> DadosEndereco:
         return DadosEndereco(

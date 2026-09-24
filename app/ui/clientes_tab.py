@@ -57,6 +57,7 @@ class ClientesTab(QWidget):
         self._cliente_id: int | None = None
         self._carregando = False
         self._historico: list[Evento] = []
+        self._editando = False
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         splitter.setHandleWidth(16)
@@ -124,14 +125,31 @@ class ClientesTab(QWidget):
         dados.setContentsMargins(16, 14, 16, 16)
         dados.setSpacing(10)
 
-        cabecalho = QHBoxLayout()
         self.titulo_ficha = rotulo("Ficha do cliente", "secao")
-        cabecalho.addWidget(self.titulo_ficha)
-        cabecalho.addStretch(1)
         self.btn_excluir = QPushButton("Excluir cliente")
         marcar(self.btn_excluir, variante="perigo")
         self.btn_excluir.clicked.connect(self._excluir)
-        cabecalho.addWidget(self.btn_excluir)
+        self.btn_editar = QPushButton("Editar cliente")
+        marcar(self.btn_editar, variante="primario")
+        self.btn_editar.clicked.connect(self._editar)
+        self.btn_descartar = QPushButton("Descartar")
+        self.btn_descartar.clicked.connect(self._descartar)
+        self.btn_salvar = QPushButton("Salvar")
+        marcar(self.btn_salvar, variante="primario")
+        self.btn_salvar.clicked.connect(self._salvar)
+
+        # No topo da ficha: as ações ficam sempre à vista, sem rolar a página.
+        cabecalho = QHBoxLayout()
+        cabecalho.setSpacing(8)
+        cabecalho.addWidget(self.titulo_ficha)
+        cabecalho.addStretch(1)
+        for botao in (
+            self.btn_excluir,
+            self.btn_editar,
+            self.btn_descartar,
+            self.btn_salvar,
+        ):
+            cabecalho.addWidget(botao)
         dados.addLayout(cabecalho)
 
         linha_tipo = QHBoxLayout()
@@ -151,17 +169,6 @@ class ClientesTab(QWidget):
         self.form_residencial = EnderecoForm(TipoEndereco.RESIDENCIAL)
         self.form_comercial = EnderecoForm(TipoEndereco.COMERCIAL)
 
-        self.btn_salvar = QPushButton("Salvar")
-        marcar(self.btn_salvar, variante="primario")
-        self.btn_salvar.clicked.connect(self._salvar)
-        self.btn_descartar = QPushButton("Descartar alterações")
-        self.btn_descartar.clicked.connect(self._descartar)
-
-        acoes = QHBoxLayout()
-        acoes.addStretch(1)
-        acoes.addWidget(self.btn_descartar)
-        acoes.addWidget(self.btn_salvar)
-
         conteudo = QWidget()
         coluna = QVBoxLayout(conteudo)
         coluna.setContentsMargins(0, 0, 10, 0)
@@ -169,7 +176,6 @@ class ClientesTab(QWidget):
         coluna.addWidget(self.cartao_dados)
         coluna.addWidget(self.form_residencial)
         coluna.addWidget(self.form_comercial)
-        coluna.addLayout(acoes)
         coluna.addStretch(1)
 
         rolagem = QScrollArea()
@@ -285,7 +291,7 @@ class ClientesTab(QWidget):
         self._cliente_id = cliente_id
         self._preencher_ficha(cliente)
         self._preencher_historico(historico)
-        self._habilitar_ficha(True)
+        self._modo_edicao(False)
 
     def _preencher_ficha(self, cliente: Cliente) -> None:
         self.campo_tipo.definir_valor(cliente.tipo)
@@ -358,6 +364,13 @@ class ClientesTab(QWidget):
         self.tabela_historico.setRowHeight(linha, 26)
 
     # ----------------------------------------------------------------- ações
+    def _editar(self) -> None:
+        """Só aqui a ficha fica editável — navegar pela lista não mexe em nada."""
+        if self._cliente_id is None:
+            return
+        self._modo_edicao(True)
+        self.nome.setFocus()
+
     def _novo(self) -> None:
         self.tabela.clearSelection()
         self._cliente_id = None
@@ -371,14 +384,14 @@ class ClientesTab(QWidget):
         self._preencher_historico([])
         self.titulo_historico.setText("Histórico de serviços")
         self.titulo_ficha.setText("Novo cliente")
-        self._habilitar_ficha(True)
+        self._modo_edicao(True)
         self.nome.setFocus()
 
     def _descartar(self) -> None:
         if self._cliente_id is None:
             self._modo_vazio()
         else:
-            self._abrir(self._cliente_id)
+            self._abrir(self._cliente_id)  # relê do banco e volta para leitura
 
     def _salvar(self) -> None:
         dados = DadosCliente(
@@ -403,6 +416,7 @@ class ClientesTab(QWidget):
             return
 
         self._cliente_id = novo_id
+        self._modo_edicao(False)
         self.recarregar()
         self._selecionar_na_tabela(novo_id)
         self._abrir(novo_id)
@@ -444,6 +458,7 @@ class ClientesTab(QWidget):
     # ---------------------------------------------------------------- estado
     def _modo_vazio(self) -> None:
         self._cliente_id = None
+        self._editando = False
         self.nome.clear()
         self.apelido.clear()
         self.telefone.clear()
@@ -453,18 +468,38 @@ class ClientesTab(QWidget):
         self._preencher_historico([])
         self.titulo_historico.setText("Histórico de serviços")
         self.titulo_ficha.setText("Escolha um cliente na lista")
-        self._habilitar_ficha(False)
+        self._modo_edicao(False)
 
-    def _habilitar_ficha(self, ativo: bool) -> None:
-        for widget in (
-            self.cartao_dados,
-            self.form_residencial,
-            self.form_comercial,
-            self.btn_salvar,
-            self.btn_descartar,
-        ):
-            widget.setEnabled(ativo)
-        self.btn_excluir.setVisible(ativo and self._cliente_id is not None)
+    def _modo_edicao(self, editando: bool) -> None:
+        """Alterna entre ler a ficha e mexer nela.
+
+        Navegar pela lista mantém tudo só de leitura; a ficha só abre para
+        edição pelo botão, ou ao criar um cliente novo.
+        """
+        self._editando = editando
+        tem_ficha = editando or self._cliente_id is not None
+
+        for campo in (self.nome, self.apelido, self.telefone):
+            campo.setReadOnly(not editando)
+            marcar(campo, leitura=not editando)
+        self.observacao.setReadOnly(not editando)
+        marcar(self.observacao, leitura=not editando)
+        self.campo_tipo.somente_leitura(not editando)
+        self.form_residencial.somente_leitura(not editando)
+        self.form_comercial.somente_leitura(not editando)
+
+        for widget in (self.cartao_dados, self.form_residencial, self.form_comercial):
+            widget.setEnabled(tem_ficha)
+
+        self.btn_editar.setVisible(not editando and self._cliente_id is not None)
+        self.btn_salvar.setVisible(editando)
+        self.btn_descartar.setVisible(editando)
+        self.btn_excluir.setVisible(not editando and self._cliente_id is not None)
+
+        # Enquanto edita, a lista fica travada: ou salva, ou descarta.
+        self.tabela.setEnabled(not editando)
+        self.busca.setEnabled(not editando)
+        self.btn_novo.setEnabled(not editando)
 
     @staticmethod
     def _rotulo(cliente: Cliente) -> str:

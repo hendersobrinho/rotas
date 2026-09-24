@@ -264,6 +264,23 @@ QPushButton[variante="segmento"]:checked {{
     color: {tinta};
     font-weight: 600;
 }}
+QPushButton[variante="segmento"]:disabled {{
+    background: transparent;
+    border-color: transparent;
+    color: {tinta_fraca};
+}}
+QPushButton[variante="segmento"]:checked:disabled {{
+    background: {papel};
+    border-color: {pauta};
+    color: {tinta_media};
+    font-weight: 600;
+}}
+/* Campo só de leitura: sem moldura de digitação, texto ainda selecionável. */
+QLineEdit[leitura="true"], QPlainTextEdit[leitura="true"] {{
+    background: {papel_suave};
+    border-color: {pauta};
+    color: {tinta};
+}}
 QFrame[grupo="segmentado"] {{
     background: {cinza_claro};
     border: 1px solid {pauta};

@@ -110,6 +110,10 @@ A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
   os campos daquele bloco em branco e salvar: o registro é removido.
 - A busca filtra por nome **ou** apelido, sem diferenciar maiúsculas e acentos
   de caixa (`ILIKE`).
+- A ficha abre **só para leitura**: dá para passear pela lista vendo os dados
+  sem risco de mexer em nada. O botão *Editar cliente*, no topo da ficha, é que
+  libera os campos — e enquanto você edita, a lista fica travada até salvar ou
+  descartar.
 - O **histórico** fica na terceira coluna, sempre visível: são os serviços do
   cliente, do mais recente para o mais antigo. Clicar duas vezes numa linha
   abre aquele dia na agenda.
@@ -197,8 +201,17 @@ a semana, em dois formatos:
 - **Celular**, uma página estreita (95 × 170 mm) que preenche a tela do telefone
   sem precisar de zoom.
 
-Cada serviço sai com quadradinho para marcar, tipo, cliente, endereço completo,
-telefone, situação e quem pediu. O PDF é vetorial: amplia sem embaçar.
+Cada serviço sai com quadradinho para marcar, o tipo, a **razão social ou nome
+completo** em destaque, o *tratar por* (o apelido, quando é diferente do nome),
+o endereço, o telefone, a situação, quem pediu e as **observações** do cliente e
+do endereço, quando houver.
+
+O endereço é um **link**: tocando nele no celular, o mapa abre já com o destino
+preenchido — é o que leva direto ao GPS.
+
+O PDF é vetorial (fontes embutidas, nada rasterizado), e o desenho é feito numa
+grade de 300 dpi: não muda o texto, que é vetor de qualquer jeito, mas deixa as
+réguas como fios de 0,085 mm em vez dos traços de 0,34 mm que saíam antes.
 
 ## Visual
 
