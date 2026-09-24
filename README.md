@@ -63,11 +63,17 @@ Na primeira execução as tabelas são criadas automaticamente
 main.py                    ponto de entrada: carrega .env, cria tabelas, abre a janela
 app/
 ├── db.py                  URL de conexão, engine, session_scope(), init_db()
-├── models.py              Cliente, Endereco, Evento e os enums do domínio
+├── models.py              as tabelas e os enums do domínio
 ├── schemas.py             dataclasses que a UI envia para o repository
+├── seguranca.py           hash de senha (PBKDF2) e tokens de sessão
+├── sessao.py              quem está logado e o token deste computador
 ├── repository/
 │   ├── clientes.py        listar, buscar, criar, atualizar, excluir clientes
-│   └── eventos.py         CRUD de eventos, filtros, histórico, mudança de status
+│   ├── eventos.py         CRUD de eventos, filtros, histórico, mudança de status
+│   ├── tipos_servico.py   cadastro dos tipos
+│   ├── solicitantes.py    cadastro de quem pede
+│   ├── usuarios.py        contas, autenticação e sessões salvas
+│   └── logs.py            gravação e consulta do registro de atividades
 └── ui/
     ├── estilo.py          tema claro: paleta, fontes e folha de estilo
     ├── main_window.py     janela com as abas Agenda, Clientes, Painel e Cadastros
@@ -75,7 +81,9 @@ app/
     ├── calendario.py      a grade do mês
     ├── evento_dialog.py   diálogo de inclusão e edição de um serviço
     ├── clientes_tab.py    lista, ficha do cliente, endereços e histórico
-    ├── cadastros.py       tipos de serviço e solicitantes
+    ├── login.py           tela de entrada e 'continuar conectado'
+    ├── cadastros.py       tipos de serviço, solicitantes e usuários
+    ├── registro_tab.py    consulta do registro de atividades
     ├── painel_tab.py      indicadores e gráficos do período
     ├── graficos.py        barras desenhadas com QPainter
     ├── relatorio_pdf.py   emissão do PDF da agenda
@@ -108,6 +116,21 @@ A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
   período vira uma faixa com o rótulo e a quantidade de serviços; nada é
   escondido, só organizado. A semana começa no domingo, igual ao calendário.
 
+### Entrar no sistema
+
+Na primeira execução não existe usuário nenhum, e a tela de entrada pede para
+criar o primeiro — é ele que depois cadastra os outros, na aba Cadastros.
+
+A opção **Continuar conectado neste computador** guarda um token em
+`~/.local/share/rotas/sessao.json`, com permissão de leitura só para o seu
+usuário do sistema operacional. O token vale 30 dias, e o banco guarda apenas o
+hash dele: o arquivo sozinho não revela senha nenhuma. Sair pelo botão no canto
+da barra de abas apaga o token dos dois lados e volta para a tela de entrada.
+Trocar a senha de alguém encerra todos os "continuar conectado" daquela pessoa.
+
+As senhas ficam como hash PBKDF2-SHA256 com 240 mil iterações e sal por usuário
+(`app/seguranca.py`) — nenhuma senha é gravada em texto.
+
 ### Cadastros
 
 - **Tipos de serviço**: Coleta e Retirada vêm prontos, e você cria os que quiser
@@ -115,6 +138,8 @@ A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
   junto um símbolo próprio (● ▲ ■ ◆) — a cor nunca é a única pista. Um tipo em
   uso não pode ser excluído; desmarque *Ativo* para tirá-lo das novas marcações
   sem mexer no histórico.
+- **Usuários**: quem entra no sistema. Não dá para excluir a si mesmo nem
+  deixar o sistema sem nenhum usuário ativo.
 - **Solicitantes**: quem pede o serviço, com o setor. Aparecem prontos na lista
   ao marcar um serviço, e dá para cadastrar na hora, sem sair do diálogo.
 
@@ -146,6 +171,16 @@ com as setas navegando de um período a outro: total, pendentes, concluídos e
 cancelados; serviços ao longo do período (por dia, ou por mês quando o período
 é o ano); por tipo de serviço, cada um na sua cor; e os oito primeiros clientes
 e solicitantes. Passar o mouse numa barra mostra o número exato.
+
+### Registro de atividades
+
+Toda inclusão, alteração e exclusão fica registrada, junto com as entradas e
+saídas do sistema: quando, quem, o que foi feito e sobre o quê. A aba
+**Registro** filtra por usuário, ação, tipo de coisa, texto e período.
+
+O registro só recebe linhas novas — nada é alterado nem apagado por ali. O nome
+de quem fez é copiado para a linha, então excluir um usuário não apaga o rastro
+do que ele fez.
 
 ### PDF da agenda
 
@@ -181,6 +216,9 @@ texto solto. Quem já tem banco desse formato roda uma vez:
 Ele cria as tabelas novas, transforma os valores antigos em cadastro e troca as
 colunas por chaves estrangeiras. Pode rodar de novo sem estragar nada — cada
 passo confere antes se já foi feito. Em banco novo, não há o que migrar.
+
+As tabelas de usuários, sessões e registro de atividades são criadas sozinhas
+por `create_all` na primeira execução — não precisam de script.
 
 ## Notas técnicas
 

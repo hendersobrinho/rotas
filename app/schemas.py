@@ -107,6 +107,22 @@ class DadosSolicitante:
 
 
 @dataclass
+class DadosUsuario:
+    nome: str
+    login: str
+    senha: str | None = None   # vazio ao editar = mantém a senha atual
+    ativo: bool = True
+
+    def normalizado(self) -> "DadosUsuario":
+        return DadosUsuario(
+            nome=(self.nome or "").strip(),
+            login=(self.login or "").strip().lower(),
+            senha=self.senha or None,
+            ativo=self.ativo,
+        )
+
+
+@dataclass
 class DadosEvento:
     cliente_id: int
     tipo_servico_id: int

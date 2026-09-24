@@ -5,7 +5,8 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Evento, TipoServico
+from app.models import AcaoLog, EntidadeLog, Evento, TipoServico
+from app.repository import logs as repo_logs
 from app.schemas import DadosTipoServico
 
 PADRAO = (("Coleta", "azul"), ("Retirada", "laranja"))
@@ -28,6 +29,10 @@ def criar(sessao: Session, dados: DadosTipoServico) -> TipoServico:
     tipo = TipoServico(nome=dados.nome, estilo=dados.estilo, ativo=dados.ativo)
     sessao.add(tipo)
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.CRIACAO, EntidadeLog.TIPO_SERVICO,
+        f"Tipo de serviço “{tipo.nome}”", tipo.id,
+    )
     return tipo
 
 
@@ -39,6 +44,11 @@ def atualizar(sessao: Session, tipo_id: int, dados: DadosTipoServico) -> TipoSer
     _validar(sessao, dados, ignorar_id=tipo_id)
     tipo.nome, tipo.estilo, tipo.ativo = dados.nome, dados.estilo, dados.ativo
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.ALTERACAO, EntidadeLog.TIPO_SERVICO,
+        f"Tipo de serviço “{tipo.nome}”" + ("" if tipo.ativo else " (inativo)"),
+        tipo.id,
+    )
     return tipo
 
 
@@ -62,8 +72,13 @@ def excluir(sessao: Session, tipo_id: int) -> None:
             f"“{tipo.nome}” está em {em_uso} serviço(s) e não pode ser excluído.\n\n"
             "Desmarque “Ativo” para tirá-lo das novas marcações sem perder o histórico."
         )
+    nome = tipo.nome
     sessao.delete(tipo)
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.EXCLUSAO, EntidadeLog.TIPO_SERVICO,
+        f"Tipo de serviço “{nome}”", tipo_id,
+    )
 
 
 def garantir_padrao(sessao: Session) -> list[TipoServico]:

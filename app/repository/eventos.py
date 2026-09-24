@@ -7,7 +7,15 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Cliente, Evento, StatusEvento, TipoServico
+from app.models import (
+    AcaoLog,
+    Cliente,
+    EntidadeLog,
+    Evento,
+    StatusEvento,
+    TipoServico,
+)
+from app.repository import logs as repo_logs
 from app.schemas import DadosEvento, FiltroEventos
 
 _CAMPOS_EVENTO = (
@@ -72,6 +80,9 @@ def criar_evento(sessao: Session, dados: DadosEvento) -> Evento:
     evento = Evento(**{campo: getattr(dados, campo) for campo in _CAMPOS_EVENTO})
     sessao.add(evento)
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.CRIACAO, EntidadeLog.EVENTO, _descrever(evento), evento.id
+    )
     return evento
 
 
@@ -86,6 +97,9 @@ def atualizar_evento(sessao: Session, evento_id: int, dados: DadosEvento) -> Eve
     for campo in _CAMPOS_EVENTO:
         setattr(evento, campo, getattr(dados, campo))
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.ALTERACAO, EntidadeLog.EVENTO, _descrever(evento), evento.id
+    )
     return evento
 
 
@@ -93,8 +107,13 @@ def alterar_status(sessao: Session, evento_id: int, status: StatusEvento) -> Eve
     evento = obter_evento(sessao, evento_id)
     if evento is None:
         raise ValueError(f"Evento {evento_id} não encontrado.")
+    anterior = evento.status
     evento.status = status
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.ALTERACAO, EntidadeLog.EVENTO,
+        f"{_descrever(evento)} — de {anterior.value} para {status.value}", evento.id,
+    )
     return evento
 
 
@@ -111,8 +130,20 @@ def excluir_evento(sessao: Session, evento_id: int) -> None:
     evento = obter_evento(sessao, evento_id)
     if evento is None:
         raise ValueError(f"Evento {evento_id} não encontrado.")
+    descricao = _descrever(evento)
     sessao.delete(evento)
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.EXCLUSAO, EntidadeLog.EVENTO, descricao, evento_id
+    )
+
+
+def _descrever(evento: Evento) -> str:
+    """Uma linha que explica o serviço no registro de atividades."""
+    return (
+        f"{evento.tipo_servico.nome} para {evento.cliente.nome_exibicao} "
+        f"em {evento.data.strftime('%d/%m/%Y')} ({evento.periodo.value})"
+    )
 
 
 def _validar(sessao: Session, dados: DadosEvento) -> None:

@@ -5,7 +5,8 @@ from __future__ import annotations
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Cliente, Endereco, TipoEndereco
+from app.models import AcaoLog, Cliente, Endereco, EntidadeLog, TipoEndereco
+from app.repository import logs as repo_logs
 from app.schemas import DadosCliente, DadosEndereco
 
 _CAMPOS_ENDERECO = (
@@ -55,6 +56,10 @@ def criar_cliente(sessao: Session, dados: DadosCliente) -> Cliente:
     sessao.add(cliente)
     _aplicar_enderecos(cliente, dados.enderecos)
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.CRIACAO, EntidadeLog.CLIENTE,
+        f"Cliente “{cliente.nome_exibicao}”", cliente.id,
+    )
     return cliente
 
 
@@ -73,6 +78,10 @@ def atualizar_cliente(sessao: Session, cliente_id: int, dados: DadosCliente) -> 
     cliente.observacao = dados.observacao
     _aplicar_enderecos(cliente, dados.enderecos)
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.ALTERACAO, EntidadeLog.CLIENTE,
+        f"Cliente “{cliente.nome_exibicao}”", cliente.id,
+    )
     return cliente
 
 
@@ -81,8 +90,13 @@ def excluir_cliente(sessao: Session, cliente_id: int) -> None:
     cliente = obter_cliente(sessao, cliente_id)
     if cliente is None:
         raise ValueError(f"Cliente {cliente_id} não encontrado.")
+    nome = cliente.nome_exibicao
     sessao.delete(cliente)
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.EXCLUSAO, EntidadeLog.CLIENTE,
+        f"Cliente “{nome}” e todo o histórico dele", cliente_id,
+    )
 
 
 def _validar(dados: DadosCliente) -> None:

@@ -5,7 +5,8 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Evento, Solicitante
+from app.models import AcaoLog, EntidadeLog, Evento, Solicitante
+from app.repository import logs as repo_logs
 from app.schemas import DadosSolicitante
 
 
@@ -44,6 +45,10 @@ def criar(sessao: Session, dados: DadosSolicitante) -> Solicitante:
     pessoa = Solicitante(nome=dados.nome, setor=dados.setor, ativo=dados.ativo)
     sessao.add(pessoa)
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.CRIACAO, EntidadeLog.SOLICITANTE,
+        f"Solicitante “{pessoa.nome_exibicao}”", pessoa.id,
+    )
     return pessoa
 
 
@@ -55,6 +60,10 @@ def atualizar(sessao: Session, solicitante_id: int, dados: DadosSolicitante) -> 
     _validar(sessao, dados, ignorar_id=solicitante_id)
     pessoa.nome, pessoa.setor, pessoa.ativo = dados.nome, dados.setor, dados.ativo
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.ALTERACAO, EntidadeLog.SOLICITANTE,
+        f"Solicitante “{pessoa.nome_exibicao}”", pessoa.id,
+    )
     return pessoa
 
 
@@ -72,8 +81,13 @@ def excluir(sessao: Session, solicitante_id: int) -> None:
     pessoa = obter(sessao, solicitante_id)
     if pessoa is None:
         raise ValueError("Solicitante não encontrado.")
+    nome = pessoa.nome_exibicao
     sessao.delete(pessoa)
     sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.EXCLUSAO, EntidadeLog.SOLICITANTE,
+        f"Solicitante “{nome}”", solicitante_id,
+    )
 
 
 def _validar(sessao: Session, dados: DadosSolicitante, ignorar_id: int | None = None) -> None:

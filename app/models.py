@@ -46,6 +46,98 @@ class StatusEvento(enum.Enum):
     CANCELADO = "Cancelado"
 
 
+class AcaoLog(enum.Enum):
+    """O que aconteceu, no registro de atividades."""
+
+    LOGIN = "Entrou"
+    LOGOUT = "Saiu"
+    CRIACAO = "Cadastrou"
+    ALTERACAO = "Alterou"
+    EXCLUSAO = "Excluiu"
+
+
+class EntidadeLog(enum.Enum):
+    """Sobre o que a ação foi."""
+
+    SISTEMA = "Sistema"
+    CLIENTE = "Cliente"
+    EVENTO = "Serviço"
+    TIPO_SERVICO = "Tipo de serviço"
+    SOLICITANTE = "Solicitante"
+    USUARIO = "Usuário"
+
+
+class Usuario(Base):
+    """Quem usa o sistema. A senha fica só como hash (ver app/seguranca.py)."""
+
+    __tablename__ = "usuarios"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str] = mapped_column(String(120), nullable=False)
+    login: Mapped[str] = mapped_column(String(60), nullable=False, unique=True)
+    senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    ultimo_acesso: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    sessoes: Mapped[list["SessaoSalva"]] = relationship(
+        back_populates="usuario", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Usuario id={self.id} login={self.login!r}>"
+
+
+class SessaoSalva(Base):
+    """Um 'continuar conectado' guardado: o computador tem o token, aqui fica o hash."""
+
+    __tablename__ = "sessoes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    maquina: Mapped[str | None] = mapped_column(String(120))
+    criada_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    usuario: Mapped[Usuario] = relationship(back_populates="sessoes", lazy="joined")
+
+
+class RegistroAtividade(Base):
+    """Uma linha do registro de atividades — nunca é alterada, só acrescentada."""
+
+    __tablename__ = "registros_atividade"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    quando: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+    usuario_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), index=True
+    )
+    # Cópia do nome: o registro continua legível mesmo se o usuário for excluído.
+    usuario_nome: Mapped[str] = mapped_column(String(120), nullable=False)
+    acao: Mapped[AcaoLog] = mapped_column(
+        SAEnum(AcaoLog, name="acao_log"), nullable=False, index=True
+    )
+    entidade: Mapped[EntidadeLog] = mapped_column(
+        SAEnum(EntidadeLog, name="entidade_log"), nullable=False, index=True
+    )
+    entidade_id: Mapped[int | None] = mapped_column()
+    descricao: Mapped[str] = mapped_column(Text, nullable=False)
+
+    usuario: Mapped[Usuario | None] = relationship(lazy="joined")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<RegistroAtividade {self.quando} {self.acao.name} {self.descricao!r}>"
+
+
 class TipoServico(Base):
     """Tipo de serviço cadastrável: Coleta, Retirada, o que o escritório criar."""
 
