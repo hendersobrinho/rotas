@@ -9,3 +9,5 @@ venv/
 # banco local de demonstração
 *.db
 *.log
+testes/.dados/
+testes/.saida/

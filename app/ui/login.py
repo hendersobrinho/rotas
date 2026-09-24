@@ -18,6 +18,7 @@ from app import sessao as sessao_app
 from app.db import session_scope
 from app.repository import usuarios as repo_usuarios
 from app.schemas import DadosUsuario
+from app.ui import marca as marca_visual
 from app.ui.estilo import CORES, FONTE_DADOS, marcar
 from app.ui.mensagens import mostrar_erro
 from app.ui.teclado import caps_lock_ligado, inferir_do_evento
@@ -42,10 +43,8 @@ class LoginDialog(QDialog):
         self.setMinimumWidth(420)
         self.setStyleSheet(f"QDialog {{ background: {CORES['papel']}; }}")
 
-        marca = QLabel("Agenda do motoboy")
-        marca.setStyleSheet(
-            f"font-size: 22px; font-weight: 600; color: {CORES['tinta']};"
-        )
+        marca = QLabel()
+        marca.setPixmap(marca_visual.pixmap(46))
         subtitulo = rotulo(
             "Crie o usuário que vai administrar o sistema."
             if self.primeiro_acesso
@@ -78,6 +77,9 @@ class LoginDialog(QDialog):
         layout.setContentsMargins(28, 26, 28, 22)
         layout.setSpacing(8)
         layout.addWidget(marca)
+        layout.addSpacing(10)
+        layout.addWidget(marca_visual.faixa(3))
+        layout.addSpacing(10)
         layout.addWidget(subtitulo)
         layout.addSpacing(12)
 
@@ -114,6 +116,13 @@ class LoginDialog(QDialog):
 
         entrar = QPushButton("Criar usuário" if self.primeiro_acesso else "Entrar")
         marcar(entrar, variante="primario")
+        # Na porta de entrada, o botão usa o azul do logotipo.
+        entrar.setStyleSheet(
+            f"QPushButton {{ background: {marca_visual.AZUL_MARCA};"
+            f" border-color: {marca_visual.AZUL_MARCA}; }}"
+            f"QPushButton:hover {{ background: {marca_visual.AZUL_TINTA};"
+            f" border-color: {marca_visual.AZUL_TINTA}; }}"
+        )
         entrar.setDefault(True)
         entrar.clicked.connect(self._entrar)
         sair = QPushButton("Fechar")

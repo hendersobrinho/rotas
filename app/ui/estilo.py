@@ -13,6 +13,18 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from app.models import Periodo, StatusEvento
 
+# Cores da marca (ver app/ui/marca.py) — usadas na moldura do sistema:
+# cabeçalhos, tela de entrada e relatórios. Não entram nos dados, que têm a
+# própria paleta validada.
+from app.ui.marca import (  # noqa: E402
+    AZUL_MARCA,
+    AZUL_MARCA_CLARO,
+    CIANO,
+    CIANO_CLARO,
+    LARANJA,
+    LARANJA_CLARO,
+)
+
 FONTE_UI = "Inter"
 FONTE_DADOS = "JetBrains Mono"
 
@@ -35,6 +47,12 @@ CORES = {
     "cinza_claro": "#F1F2F5",
     "vermelho": "#B42318",
     "vermelho_claro": "#FEECEB",
+    "marca": AZUL_MARCA,
+    "marca_clara": AZUL_MARCA_CLARO,
+    "ciano": CIANO,
+    "ciano_claro": CIANO_CLARO,
+    "laranja": LARANJA,
+    "laranja_claro": LARANJA_CLARO,
 }
 
 # Paleta oferecida no cadastro de tipos de serviço.

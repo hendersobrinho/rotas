@@ -8,7 +8,7 @@ from urllib.parse import quote_plus
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QMarginsF, QSizeF
+from PySide6.QtCore import QMarginsF, QSizeF, QUrl
 from PySide6.QtGui import QFont, QPageLayout, QPageSize, QPdfWriter, QTextDocument
 from PySide6.QtWidgets import (
     QDialog,
@@ -23,6 +23,7 @@ from app.db import session_scope
 from app.models import Evento, Periodo, StatusEvento
 from app.repository import eventos as repo_eventos
 from app.schemas import FiltroEventos
+from app.ui import marca
 from app.ui.datas import (
     Agrupamento,
     DIAS_POR_EXTENSO,
@@ -32,6 +33,7 @@ from app.ui.datas import (
     rotulo_do_periodo,
 )
 from app.ui.estilo import (
+    COR_STATUS,
     CORES,
     ROTULO_PERIODO,
     cores_da_etiqueta,
@@ -45,17 +47,27 @@ from app.ui.widgets import Segmentado, rotulo
 # Duas páginas possíveis: A4 para imprimir e uma estreita que enche a tela do
 # celular sem precisar dar zoom.
 FORMATOS = {
-    "A4": dict(tamanho=QPageSize(QPageSize.PageSizeId.A4), margem=15.0, base=11.5),
+    "A4": dict(
+        tamanho=QPageSize(QPageSize.PageSizeId.A4),
+        deitada=True,          # a folha do computador sai na horizontal
+        margem=12.0,
+        base=9.5,
+        modo="tabela",
+    ),
     "Celular": dict(
         tamanho=QPageSize(QSizeF(95.0, 170.0), QPageSize.Unit.Millimeter),
-        margem=7.0,
-        base=9.5,
+        deitada=False,
+        margem=6.5,
+        base=7.0,
+        modo="lista",
     ),
 }
 
 # O desenho é feito numa grade de 300 dpi em vez dos 72 dpi de um ponto. Não é
 # o texto que muda — ele é vetorial dos dois jeitos —, são os fios: "1px" a
 # 72 dpi vira um traço de 0,34 mm, grosso; a 300 dpi vira fio de 0,085 mm.
+URL_LOGO = "marca-rotas"
+URL_FIO = "fio-marca"
 RESOLUCAO = 300
 ESCALA = RESOLUCAO / 72.0
 
@@ -118,24 +130,62 @@ def _pastilha(texto: str, cor: str, fundo: str, corpo: float) -> str:
     )
 
 
-def _cabecalho(titulo: str, contagem: dict[str, tuple[str, int]], b: float) -> str:
-    """Faixa de abertura: nome, período e o resumo por tipo de serviço."""
+def _cabecalho(
+    titulo: str,
+    contagem: dict[str, tuple[str, int]],
+    b: float,
+    largura: int,
+    empilhado: bool = False,
+) -> str:
+    """Faixa de abertura: logotipo, período e o resumo por tipo de serviço.
+
+    Na folha estreita tudo vai empilhado — lado a lado, o título quebraria em
+    três linhas e as pastilhas ficariam picadas.
+    """
     chips = "&nbsp;&nbsp;".join(
         _pastilha(f"{glifo} {nome} {total}", cor, fundo, b * 0.8)
         for nome, (estilo, total) in contagem.items()
         for cor, fundo in [cores_da_etiqueta(estilo)]
         for glifo in [glifo_da_etiqueta(estilo)]
     )
-    return (
-        f'<table width="100%" cellspacing="0" cellpadding="{round(9 * ESCALA)}">'
-        f'<tr><td style="background:{CORES["azul_claro"]};'
-        f' border-left:{max(1, round(ESCALA * 1.6))}px solid {CORES["azul"]};">'
-        f'<div style="font-size:{b * 1.6:.2f}pt; font-weight:600;'
-        f' color:{CORES["tinta"]};">Agenda do motoboy</div>'
-        f'<div style="font-size:{b * 1.02:.2f}pt; color:{CORES["tinta_media"]};">'
+    altura_logo = round(b * (2.0 if empilhado else 2.4))
+    largura_logo = round(altura_logo * 273 / 110)
+    fio = max(2, round(ESCALA * 1.2))
+    recheio = round((5 if empilhado else 7) * ESCALA)
+    logotipo = f'<img src="{URL_LOGO}" width="{largura_logo}" height="{altura_logo}">'
+    texto = (
+        f'<div style="font-size:{b * 1.25:.2f}pt; font-weight:600;'
+        f' color:{CORES["marca"]};">Agenda do motoboy</div>'
+        f'<div style="font-size:{b * 0.95:.2f}pt; color:{CORES["tinta_media"]};">'
         f"{_escapar(titulo)}</div>"
-        + (f'<div style="margin-top:{round(b * 0.5)}px;">{chips}</div>' if chips else "")
-        + "</td></tr></table>"
+    )
+
+    if empilhado:
+        corpo = (
+            f'<tr><td style="background:{CORES["marca_clara"]};">'
+            f'<div style="margin-bottom:{round(b * 0.4)}px;">{logotipo}</div>'
+            f"{texto}"
+            + (f'<div style="margin-top:{round(b * 0.45)}px;">{chips}</div>'
+               if chips else "")
+            + "</td></tr>"
+        )
+    else:
+        corpo = (
+            f'<tr><td width="1%" valign="middle"'
+            f' style="background:{CORES["marca_clara"]};">{logotipo}</td>'
+            f'<td valign="middle" style="background:{CORES["marca_clara"]};'
+            f' padding-left:{round(10 * ESCALA)}px;">{texto}</td>'
+            f'<td align="right" valign="middle"'
+            f' style="background:{CORES["marca_clara"]};">{chips}</td></tr>'
+        )
+
+    return (
+        f'<table width="100%" cellspacing="0" cellpadding="{recheio}">'
+        + corpo
+        + "</table>"
+        # O fio tricolor vai como imagem: tabela aninhada não estica até a
+        # borda no texto rico do Qt.
+        f'<img src="{URL_FIO}" width="{largura}" height="{fio}">'
     )
 
 
@@ -148,11 +198,11 @@ def _titulo_do_dia(dia: date, quantos: int, b: float) -> str:
     nome_dia = DIAS_POR_EXTENSO[dia.weekday()].split("-")[0]
     return (
         f'<div style="margin-top:{round(b * 1.2)}px;">'
-        f'<span style="background:{CORES["tinta"]}; color:#FFFFFF;'
+        f'<span style="background:{CORES["marca"]}; color:#FFFFFF;'
         f' font-size:{b * 1.15:.2f}pt; font-weight:600;">'
         f"&nbsp;&nbsp;{dia.day}&nbsp;&nbsp;</span>"
         f'<span style="font-size:{b * 1.05:.2f}pt; font-weight:600;'
-        f' color:{CORES["tinta"]};">'
+        f' color:{CORES["marca"]};">'
         f"&nbsp;&nbsp;{_escapar(nome_dia.capitalize())}, {dia.day} de "
         f"{MESES[dia.month - 1]}</span>"
         f'<span style="font-size:{b * 0.8:.2f}pt; color:{CORES["tinta_fraca"]};">'
@@ -162,9 +212,11 @@ def _titulo_do_dia(dia: date, quantos: int, b: float) -> str:
 
 def _faixa_periodo(periodo: Periodo, b: float) -> str:
     glifo = "☀" if periodo is Periodo.MANHA else "☾"
+    fundo = CORES["laranja_claro"] if periodo is Periodo.MANHA else CORES["ciano_claro"]
+    cor = CORES["carimbo"] if periodo is Periodo.MANHA else CORES["marca"]
     return (
         f'<div style="font-size:{b * 0.78:.2f}pt; font-weight:600;'
-        f' color:{CORES["tinta_media"]}; background:{CORES["cinza_claro"]};'
+        f' color:{cor}; background:{fundo};'
         f' margin-top:{round(b * 0.7)}px;">'
         f"&nbsp;{glifo}&nbsp; {ROTULO_PERIODO[periodo]}&nbsp;</div>"
     )
@@ -260,7 +312,124 @@ def _bloco_servico(evento: Evento, b: float, fio: str) -> str:
     )
 
 
-def montar_html(titulo: str, dias: list[tuple[date, list[Evento]]], base: float) -> str:
+def _cabecalho_tabela(b: float, fio: str) -> str:
+    colunas = (
+        ("", "3%"), ("Serviço", "11%"), ("Cliente", "24%"),
+        ("Endereço", "34%"), ("Quem pediu", "14%"), ("Situação", "14%"),
+    )
+    celulas = "".join(
+        f'<td width="{largura}" style="font-size:{b * 0.72:.2f}pt;'
+        f' font-weight:600; color:{CORES["tinta_fraca"]};'
+        f' border-bottom:{fio} solid {CORES["pauta_forte"]};">{nome.upper()}</td>'
+        for nome, largura in colunas
+    )
+    return f"<tr>{celulas}</tr>"
+
+
+def _linha_tabela(evento: Evento, b: float, fio: str) -> str:
+    """Um serviço numa linha, para a folha deitada."""
+    cor, fundo = cores_da_etiqueta(evento.tipo_servico.estilo)
+    glifo = glifo_da_etiqueta(evento.tipo_servico.estilo)
+    cancelado = evento.status is StatusEvento.CANCELADO
+    if cancelado:
+        cor, fundo = CORES["tinta_fraca"], CORES["cinza_claro"]
+    risco = "text-decoration: line-through;" if cancelado else "text-decoration: none;"
+    cliente = evento.cliente
+    borda = f"border-bottom:{fio} solid {CORES['pauta']};"
+
+    tratar = ""
+    if cliente.apelido and cliente.apelido.strip() != cliente.nome.strip():
+        tratar = (
+            f'<div style="font-size:{b * 0.78:.2f}pt;'
+            f' color:{CORES["tinta_media"]};">Tratar por '
+            f"<b>{_escapar(cliente.apelido)}</b></div>"
+        )
+    telefone = (
+        f'<div style="font-size:{b * 0.78:.2f}pt; color:{CORES["tinta_fraca"]};">'
+        f"{_escapar(cliente.telefone)}</div>"
+        if cliente.telefone
+        else ""
+    )
+
+    if evento.endereco is not None:
+        texto_endereco = _escapar(
+            f"{evento.endereco.tipo.value}: {evento.endereco.resumo()}"
+        )
+        mapa = _mapa(evento)
+        endereco = (
+            f'<a href="{mapa}" style="color:{CORES["azul"]};'
+            f' text-decoration:none;">{texto_endereco}</a>'
+            f'<span style="color:{CORES["azul"]};'
+            f' font-size:{b * 0.72:.2f}pt;">&nbsp;↗ mapa</span>'
+            if mapa
+            else f'<span style="color:{CORES["tinta_media"]};">{texto_endereco}</span>'
+        )
+    else:
+        endereco = (
+            f'<span style="color:{CORES["tinta_fraca"]};">'
+            "Endereço não informado</span>"
+        )
+
+    observacoes = "".join(
+        f'<div style="font-size:{b * 0.76:.2f}pt; color:{CORES["tinta"]};'
+        f' background:{CORES["papel_suave"]};">&nbsp;Obs.: {_escapar(t.strip())}'
+        "&nbsp;</div>"
+        for t in (
+            cliente.observacao,
+            evento.endereco.observacao if evento.endereco is not None else None,
+        )
+        if t and t.strip()
+    )
+
+    situacao = [_pastilha(_escapar(evento.status.value), *COR_STATUS[evento.status],
+                          b * 0.76)]
+    if evento.motivo:
+        situacao.append(
+            f'<div style="font-size:{b * 0.74:.2f}pt;'
+            f' color:{CORES["tinta_media"]};">{_escapar(evento.motivo)}</div>'
+        )
+    if evento.remarcacao is not None:
+        situacao.append(
+            f'<div style="font-size:{b * 0.74:.2f}pt; color:{CORES["tinta_fraca"]};">'
+            f"remarcado p/ {evento.remarcacao.data.strftime('%d/%m')}</div>"
+        )
+    elif evento.origem is not None:
+        situacao.append(
+            f'<div style="font-size:{b * 0.74:.2f}pt; color:{CORES["tinta_fraca"]};">'
+            f"veio de {evento.origem.data.strftime('%d/%m')}</div>"
+        )
+
+    return (
+        f'<tr><td valign="top" style="{borda} font-size:{b * 1.1:.2f}pt;'
+        f' color:{CORES["tinta_fraca"]};">&#9744;</td>'
+        f'<td valign="top" style="{borda}">'
+        f"{_pastilha(f'{glifo} ' + _escapar(evento.tipo_servico.nome), cor, fundo, b * 0.78)}"
+        "</td>"
+        f'<td valign="top" style="{borda}">'
+        f'<div style="font-size:{b * 0.95:.2f}pt; font-weight:600;'
+        f' color:{CORES["tinta"]}; {risco}">{_escapar(cliente.nome)}</div>'
+        f"{tratar}{telefone}</td>"
+        f'<td valign="top" style="{borda} font-size:{b * 0.82:.2f}pt;">'
+        f"{endereco}{observacoes}</td>"
+        f'<td valign="top" style="{borda} font-size:{b * 0.8:.2f}pt;'
+        f' color:{CORES["tinta_media"]};">'
+        + (
+            _escapar(evento.solicitante.nome_exibicao)
+            if evento.solicitante is not None
+            else "—"
+        )
+        + "</td>"
+        f'<td valign="top" style="{borda}">' + "".join(situacao) + "</td></tr>"
+    )
+
+
+def montar_html(
+    titulo: str,
+    dias: list[tuple[date, list[Evento]]],
+    base: float,
+    modo: str = "lista",
+    largura: int = 2000,
+) -> str:
     """Monta o documento. O mesmo HTML serve aos dois formatos, em corpos diferentes."""
     b = base * ESCALA
     fio = f"{max(1, round(ESCALA * 0.35))}px"
@@ -274,7 +443,10 @@ def montar_html(titulo: str, dias: list[tuple[date, list[Evento]]], base: float)
             estilo, total = contagem.get(nome, (evento.tipo_servico.estilo, 0))
             contagem[nome] = (estilo, total + 1)
 
-    partes = ["<html><body>", _cabecalho(titulo, contagem, b)]
+    partes = [
+        "<html><body>",
+        _cabecalho(titulo, contagem, b, largura, empilhado=modo != "tabela"),
+    ]
 
     total = 0
     um_dia_so = len(dias) == 1
@@ -312,9 +484,15 @@ def montar_html(titulo: str, dias: list[tuple[date, list[Evento]]], base: float)
                 f'<table cellspacing="0" cellpadding="{round(6 * ESCALA)}"'
                 ' width="100%">'
             )
+            if modo == "tabela":
+                partes.append(_cabecalho_tabela(b, fio))
             for evento in do_periodo:
                 total += 1
-                partes.append(_bloco_servico(evento, b, fio))
+                partes.append(
+                    _linha_tabela(evento, b, fio)
+                    if modo == "tabela"
+                    else _bloco_servico(evento, b, fio)
+                )
             partes.append("</table>")
 
     emitido = date.today().strftime("%d/%m/%Y")
@@ -345,7 +523,11 @@ def gerar_pdf(caminho: str | Path, titulo: str, dias, formato: str) -> Path:
 
     escritor = QPdfWriter(str(destino))
     escritor.setPageSize(ajustes["tamanho"])
-    escritor.setPageOrientation(QPageLayout.Orientation.Portrait)
+    escritor.setPageOrientation(
+        QPageLayout.Orientation.Landscape
+        if ajustes["deitada"]
+        else QPageLayout.Orientation.Portrait
+    )
     escritor.setPageMargins(
         QMarginsF(*([ajustes["margem"]] * 4)), QPageLayout.Unit.Millimeter
     )
@@ -354,10 +536,25 @@ def gerar_pdf(caminho: str | Path, titulo: str, dias, formato: str) -> Path:
 
     documento = QTextDocument()
     documento.setDefaultFont(QFont("Inter", round(ajustes["base"] * ESCALA)))
-    documento.setHtml(montar_html(titulo, dias, ajustes["base"]))
-    documento.setPageSize(
-        QSizeF(escritor.width(), escritor.height())
+    # O logotipo entra como recurso do documento, desenhado no tamanho exato
+    # em que vai aparecer — nada é reamostrado na hora de imprimir.
+    altura_logo = round(ajustes["base"] * ESCALA * 2.4)
+    documento.addResource(
+        QTextDocument.ResourceType.ImageResource,
+        QUrl(URL_LOGO),
+        marca.imagem(altura_logo),
     )
+    largura = escritor.width()
+    altura_fio = max(2, round(ESCALA * 1.2))
+    documento.addResource(
+        QTextDocument.ResourceType.ImageResource,
+        QUrl(URL_FIO),
+        marca.fio_imagem(largura, altura_fio),
+    )
+    documento.setHtml(
+        montar_html(titulo, dias, ajustes["base"], ajustes["modo"], largura)
+    )
+    documento.setPageSize(QSizeF(escritor.width(), escritor.height()))
     documento.print_(escritor)
     return destino
 

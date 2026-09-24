@@ -62,6 +62,7 @@ Na primeira execução as tabelas são criadas automaticamente
 ```
 main.py                    ponto de entrada: carrega .env, cria tabelas, abre a janela
 app/
+├── recursos/              logotipo (logo.svg) e só o símbolo (marca.svg)
 ├── db.py                  URL de conexão, engine, session_scope(), init_db()
 ├── models.py              as tabelas e os enums do domínio
 ├── schemas.py             dataclasses que a UI envia para o repository
@@ -75,6 +76,7 @@ app/
 │   ├── usuarios.py        contas, autenticação e sessões salvas
 │   └── logs.py            gravação e consulta do registro de atividades
 └── ui/
+    ├── marca.py           cores da marca e desenho do logotipo
     ├── estilo.py          tema claro: paleta, fontes e folha de estilo
     ├── main_window.py     janela com as abas Agenda, Clientes, Painel e Cadastros
     ├── eventos_tab.py     calendário do mês e a folha do dia
@@ -94,6 +96,11 @@ app/
     ├── datas.py           datas em português, agrupamento e intervalos
     ├── widgets.py         etiquetas, botões segmentados, tabelas e endereço
     └── mensagens.py       caixas de erro e confirmação
+testes/
+├── comum.py               banco descartável e dados de exemplo
+├── teste_interface.py     entrada, clientes, agenda, cadastros e painel
+├── teste_pdf.py           logotipo, cores, folha deitada e versão celular
+└── rodar.sh               roda tudo num banco de teste
 scripts/
 ├── migrar_tipos_e_solicitantes.py   migração para o formato com cadastros
 ├── migrar_nao_realizado.py          migração do estado "não realizado"
@@ -236,9 +243,11 @@ que sai é feita num mini calendário: no modo **Dia** o clique marca o dia; no
 modo **Semana**, a linha inteira acende e sai a semana toda (de domingo a
 sábado, igual ao calendário da agenda). Dois formatos:
 
-- **A4**, para imprimir ou mandar por e-mail;
-- **Celular**, uma página estreita (95 × 170 mm) que preenche a tela do telefone
-  sem precisar de zoom.
+- **A4 deitado**, em tabela: uma linha por serviço, com colunas de serviço,
+  cliente, endereço, quem pediu e situação. A largura da folha horizontal é o
+  que permite ver tudo de um serviço sem quebrar linha;
+- **Celular**, uma página estreita (95 × 170 mm) em formato de lista, com corpo
+  pequeno para caber bastante coisa na tela do telefone.
 
 A folha abre com uma faixa azul: o nome, o período e pastilhas com a contagem
 por tipo de serviço. No PDF da semana, cada dia com serviço ganha o número num
@@ -259,6 +268,14 @@ grade de 300 dpi: não muda o texto, que é vetor de qualquer jeito, mas deixa a
 réguas como fios de 0,085 mm em vez dos traços de 0,34 mm que saíam antes.
 
 ## Visual
+
+A identidade vem do logotipo do escritório (`app/recursos/logo.svg`): azul
+escuro `#203461`, ciano `#4BBDCD` e laranja `#F9B259`. As três cores aparecem
+como um fio fino — na tela de entrada, no rodapé da janela e no alto de cada
+PDF —, o símbolo fica à esquerda das abas e vira o ícone da janela, e o
+logotipo inteiro abre a tela de entrada e os relatórios. Essas cores são a
+moldura do sistema; os dados continuam com a própria paleta, que passou pela
+validação de daltonismo.
 
 O app tem tema claro próprio e não acompanha o tema escuro do sistema: a
 paleta, as fontes e a folha de estilo ficam todas em `app/ui/estilo.py`, e
@@ -290,6 +307,17 @@ criados antes dessa versão:
 
 As tabelas de usuários, sessões e registro de atividades são criadas sozinhas
 por `create_all` na primeira execução — não precisam de script.
+
+## Verificações
+
+```bash
+createdb rotas_teste     # uma vez
+./testes/rodar.sh
+```
+
+O script cria e derruba um banco descartável a cada arquivo, usando a mesma
+conexão do `.env` — o banco de trabalho não é tocado. As telas rodam em modo
+offscreen, então não abre janela nenhuma.
 
 ## Notas técnicas
 
