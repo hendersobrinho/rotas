@@ -92,7 +92,8 @@ app/
     ├── widgets.py         etiquetas, botões segmentados, tabelas e endereço
     └── mensagens.py       caixas de erro e confirmação
 scripts/
-└── migrar_tipos_e_solicitantes.py   migração para o formato com cadastros
+├── migrar_tipos_e_solicitantes.py   migração para o formato com cadastros
+└── diagnostico_capslock.py          o que cada leitura do Caps Lock responde
 ```
 
 A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
@@ -134,9 +135,16 @@ da barra de abas apaga o token dos dois lados e volta para a tela de entrada.
 Trocar a senha de alguém encerra todos os "continuar conectado" daquela pessoa.
 
 Com o **Caps Lock ligado**, um aviso aparece logo abaixo do campo de senha. O
-estado vem do próprio teclado (XKB, via libX11 — funciona no Wayland por conta
-do XWayland); onde isso não estiver disponível, o aviso é deduzido do que você
-digita: letra maiúscula sem Shift, ou minúscula com Shift.
+estado é procurado em três lugares, nesta ordem: o LED do teclado no sysfs
+(`/sys/class/leds/*capslock*/brightness`, mantido pelo kernel — funciona no
+Wayland, no X11 e no console), o servidor X via XKB, e por último a dedução
+pelo que você digita (letra maiúscula sem Shift, ou minúscula com Shift).
+
+Para conferir o que cada caminho responde na sua máquina:
+
+```bash
+.venv/bin/python scripts/diagnostico_capslock.py
+```
 
 As senhas ficam como hash PBKDF2-SHA256 com 240 mil iterações e sal por usuário
 (`app/seguranca.py`) — nenhuma senha é gravada em texto.
