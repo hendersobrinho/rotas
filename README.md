@@ -215,8 +215,14 @@ sábado, igual ao calendário da agenda). Dois formatos:
 - **Celular**, uma página estreita (95 × 170 mm) que preenche a tela do telefone
   sem precisar de zoom.
 
-Cada serviço sai com quadradinho para marcar, o tipo, a **razão social ou nome
-completo** em destaque, o *tratar por* (o apelido, quando é diferente do nome),
+A folha abre com uma faixa azul: o nome, o período e pastilhas com a contagem
+por tipo de serviço. No PDF da semana, cada dia com serviço ganha o número num
+selo escuro; os dias vazios viram uma linha discreta, para não comerem meia
+página. Cada período tem sua faixa (☀ manhã, ☾ tarde) e cada serviço uma barra
+na cor do seu tipo.
+
+Cada serviço sai com quadradinho para marcar, o tipo numa pastilha colorida, a
+**razão social ou nome completo** em destaque, o *tratar por* (o apelido, quando é diferente do nome),
 o endereço, o telefone, a situação, quem pediu e as **observações** do cliente e
 do endereço, quando houver.
 

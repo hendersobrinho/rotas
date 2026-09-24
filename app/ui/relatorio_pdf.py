@@ -25,11 +25,19 @@ from app.repository import eventos as repo_eventos
 from app.schemas import FiltroEventos
 from app.ui.datas import (
     Agrupamento,
+    DIAS_POR_EXTENSO,
+    MESES,
     data_por_extenso,
     inicio_da_semana,
     rotulo_do_periodo,
 )
-from app.ui.estilo import CORES, ROTULO_PERIODO, cores_da_etiqueta, marcar
+from app.ui.estilo import (
+    CORES,
+    ROTULO_PERIODO,
+    cores_da_etiqueta,
+    glifo_da_etiqueta,
+    marcar,
+)
 from app.ui.mensagens import mostrar_erro
 from app.ui.seletor_data import SeletorDeData
 from app.ui.widgets import Segmentado, rotulo
@@ -101,19 +109,82 @@ def _mapa(evento: Evento) -> str | None:
     return f"https://www.google.com/maps/search/?api=1&amp;query={consulta}"
 
 
+def _pastilha(texto: str, cor: str, fundo: str, corpo: float) -> str:
+    """Etiqueta com fundo — o Qt não arredonda cantos em texto rico, então
+    o efeito vem do fundo colorido com respiro nas laterais."""
+    return (
+        f'<span style="background:{fundo}; color:{cor}; font-size:{corpo:.2f}pt;'
+        f' font-weight:600;">&nbsp;{texto}&nbsp;</span>'
+    )
+
+
+def _cabecalho(titulo: str, contagem: dict[str, tuple[str, int]], b: float) -> str:
+    """Faixa de abertura: nome, período e o resumo por tipo de serviço."""
+    chips = "&nbsp;&nbsp;".join(
+        _pastilha(f"{glifo} {nome} {total}", cor, fundo, b * 0.8)
+        for nome, (estilo, total) in contagem.items()
+        for cor, fundo in [cores_da_etiqueta(estilo)]
+        for glifo in [glifo_da_etiqueta(estilo)]
+    )
+    return (
+        f'<table width="100%" cellspacing="0" cellpadding="{round(9 * ESCALA)}">'
+        f'<tr><td style="background:{CORES["azul_claro"]};'
+        f' border-left:{max(1, round(ESCALA * 1.6))}px solid {CORES["azul"]};">'
+        f'<div style="font-size:{b * 1.6:.2f}pt; font-weight:600;'
+        f' color:{CORES["tinta"]};">Agenda do motoboy</div>'
+        f'<div style="font-size:{b * 1.02:.2f}pt; color:{CORES["tinta_media"]};">'
+        f"{_escapar(titulo)}</div>"
+        + (f'<div style="margin-top:{round(b * 0.5)}px;">{chips}</div>' if chips else "")
+        + "</td></tr></table>"
+    )
+
+
+def _titulo_do_dia(dia: date, quantos: int, b: float) -> str:
+    """Número do dia em destaque, seguido do nome por extenso.
+
+    Sem tabela de propósito: a coluna estreita de uma tabela do Qt aperta o
+    número e quebra "24" em duas linhas. Um trecho com fundo resolve.
+    """
+    nome_dia = DIAS_POR_EXTENSO[dia.weekday()].split("-")[0]
+    return (
+        f'<div style="margin-top:{round(b * 1.2)}px;">'
+        f'<span style="background:{CORES["tinta"]}; color:#FFFFFF;'
+        f' font-size:{b * 1.15:.2f}pt; font-weight:600;">'
+        f"&nbsp;&nbsp;{dia.day}&nbsp;&nbsp;</span>"
+        f'<span style="font-size:{b * 1.05:.2f}pt; font-weight:600;'
+        f' color:{CORES["tinta"]};">'
+        f"&nbsp;&nbsp;{_escapar(nome_dia.capitalize())}, {dia.day} de "
+        f"{MESES[dia.month - 1]}</span>"
+        f'<span style="font-size:{b * 0.8:.2f}pt; color:{CORES["tinta_fraca"]};">'
+        f"&nbsp;&nbsp;· {quantos} serviço(s)</span></div>"
+    )
+
+
+def _faixa_periodo(periodo: Periodo, b: float) -> str:
+    glifo = "☀" if periodo is Periodo.MANHA else "☾"
+    return (
+        f'<div style="font-size:{b * 0.78:.2f}pt; font-weight:600;'
+        f' color:{CORES["tinta_media"]}; background:{CORES["cinza_claro"]};'
+        f' margin-top:{round(b * 0.7)}px;">'
+        f"&nbsp;{glifo}&nbsp; {ROTULO_PERIODO[periodo]}&nbsp;</div>"
+    )
+
+
 def _bloco_servico(evento: Evento, b: float, fio: str) -> str:
-    """Um serviço: quem é, onde, como tratar e o que foi combinado."""
-    cor, _ = cores_da_etiqueta(evento.tipo_servico.estilo)
+    """Um serviço: barra na cor do tipo, quem é, onde, como tratar e o combinado."""
+    cor, fundo = cores_da_etiqueta(evento.tipo_servico.estilo)
+    glifo = glifo_da_etiqueta(evento.tipo_servico.estilo)
     cancelado = evento.status is StatusEvento.CANCELADO
+    if cancelado:
+        cor, fundo = CORES["tinta_fraca"], CORES["cinza_claro"]
     risco = "text-decoration: line-through;" if cancelado else "text-decoration: none;"
     cliente = evento.cliente
 
     linhas = [
-        f'<span style="font-size:{b * 0.95:.2f}pt; font-weight:600; color:{cor};'
-        f' {risco}">{_escapar(evento.tipo_servico.nome)}</span>'
-        f'<span style="font-size:{b * 1.1:.2f}pt; font-weight:600;'
+        f'<div>{_pastilha(f"{glifo} {_escapar(evento.tipo_servico.nome)}", cor, fundo, b * 0.82)}'
+        f'<span style="font-size:{b * 1.12:.2f}pt; font-weight:600;'
         f' color:{CORES["tinta"]}; {risco}">'
-        f"&nbsp;&nbsp;{_escapar(cliente.nome)}</span>"
+        f"&nbsp;&nbsp;{_escapar(cliente.nome)}</span></div>"
     ]
 
     if cliente.apelido and cliente.apelido.strip() != cliente.nome.strip():
@@ -123,16 +194,14 @@ def _bloco_servico(evento: Evento, b: float, fio: str) -> str:
         )
 
     if evento.endereco is not None:
-        endereco = _escapar(
-            f"{evento.endereco.tipo.value}: {evento.endereco.resumo()}"
-        )
+        endereco = _escapar(f"{evento.endereco.tipo.value}: {evento.endereco.resumo()}")
         mapa = _mapa(evento)
         if mapa:
             linhas.append(
                 f'<div style="font-size:{b * 0.88:.2f}pt;">'
                 f'<a href="{mapa}" style="color:{CORES["azul"]};'
                 f' text-decoration: none;">{endereco}</a>'
-                f'<span style="color:{CORES["azul"]}; font-size:{b * 0.8:.2f}pt;">'
+                f'<span style="color:{CORES["azul"]}; font-size:{b * 0.78:.2f}pt;">'
                 "&nbsp;&nbsp;↗ abrir no mapa</span></div>"
             )
         else:
@@ -167,14 +236,18 @@ def _bloco_servico(evento: Evento, b: float, fio: str) -> str:
     for texto in observacoes:
         linhas.append(
             f'<div style="font-size:{b * 0.84:.2f}pt; color:{CORES["tinta"]};'
-            f' background:{CORES["cinza_claro"]};">'
+            f' background:{CORES["papel_suave"]};'
+            f' border-left:{max(1, round(ESCALA))}px solid {CORES["pauta_forte"]};">'
             f"&nbsp;Obs.: {_escapar(texto)}&nbsp;</div>"
         )
 
+    largura_barra = max(2, round(2.2 * ESCALA))
     return (
-        f'<tr><td width="{int(22 * ESCALA)}" valign="top"'
-        f' style="font-size:{b * 1.25:.2f}pt; color:{CORES["tinta_fraca"]};">'
-        "&#9744;</td>"
+        "<tr>"
+        f'<td width="{largura_barra}" style="background:{cor};"></td>'
+        f'<td width="{round(24 * ESCALA)}" valign="top"'
+        f' style="font-size:{b * 1.3:.2f}pt; color:{CORES["tinta_fraca"]};'
+        f' padding-left:{round(6 * ESCALA)}px;">&#9744;</td>'
         f'<td valign="top" style="border-bottom:{fio} solid {CORES["pauta"]};">'
         + "".join(linhas)
         + "</td></tr>"
@@ -185,50 +258,52 @@ def montar_html(titulo: str, dias: list[tuple[date, list[Evento]]], base: float)
     """Monta o documento. O mesmo HTML serve aos dois formatos, em corpos diferentes."""
     b = base * ESCALA
     fio = f"{max(1, round(ESCALA * 0.35))}px"
-    fio_forte = f"{max(1, round(ESCALA * 0.5))}px"
     espaco = round(b * 0.9)
 
-    partes = [
-        f"""<html><body>
-        <div style="font-size:{b * 1.55:.2f}pt; font-weight:600;
-                    color:{CORES['tinta']};">Agenda do motoboy</div>
-        <div style="font-size:{b * 1.05:.2f}pt; color:{CORES['tinta_media']};
-                    margin-bottom:{espaco}px;">{_escapar(titulo)}</div>
-        """
-    ]
+    # Resumo por tipo, para as pastilhas do cabeçalho.
+    contagem: dict[str, tuple[str, int]] = {}
+    for _dia, eventos in dias:
+        for evento in eventos:
+            nome = evento.tipo_servico.nome
+            estilo, total = contagem.get(nome, (evento.tipo_servico.estilo, 0))
+            contagem[nome] = (estilo, total + 1)
+
+    partes = ["<html><body>", _cabecalho(titulo, contagem, b)]
 
     total = 0
-    # Num PDF de um dia só, o subtítulo já diz a data: não repetir.
-    repetir_data = len(dias) > 1
+    um_dia_so = len(dias) == 1
     for dia, eventos in dias:
-        if repetir_data:
-            partes.append(
-                f'<div style="font-size:{b * 1.15:.2f}pt; font-weight:600;'
-                f' color:{CORES["tinta"]}; margin-top:{espaco}px;">'
-                f"{_escapar(data_por_extenso(dia).capitalize())}</div>"
-            )
-        partes.append(
-            f'<hr style="border:0; border-top:{fio_forte} solid'
-            f' {CORES["pauta_forte"]};">'
-        )
         if not eventos:
-            partes.append(
-                f'<div style="font-size:{b:.2f}pt; color:{CORES["tinta_fraca"]};">'
-                "Nenhum serviço marcado.</div>"
-            )
+            # Dia vazio não merece um bloco inteiro: uma linha basta.
+            if not um_dia_so:
+                nome_dia = DIAS_POR_EXTENSO[dia.weekday()].split("-")[0]
+                partes.append(
+                    f'<div style="font-size:{b * 0.85:.2f}pt;'
+                    f' color:{CORES["tinta_fraca"]};'
+                    f' margin-top:{round(espaco * 0.5)}px;">'
+                    f"{dia.day:02d}/{dia.month:02d} · {nome_dia.capitalize()}"
+                    " — sem serviços</div>"
+                )
+            else:
+                partes.append(
+                    f'<div style="font-size:{b * 0.9:.2f}pt;'
+                    f' color:{CORES["tinta_fraca"]};'
+                    f' background:{CORES["papel_suave"]};'
+                    f' margin-top:{round(espaco * 0.4)}px;">'
+                    "&nbsp;Nenhum serviço marcado.&nbsp;</div>"
+                )
             continue
+
+        if not um_dia_so:
+            partes.append(_titulo_do_dia(dia, len(eventos), b))
 
         for periodo in Periodo:
             do_periodo = [e for e in eventos if e.periodo is periodo]
             if not do_periodo:
                 continue
+            partes.append(_faixa_periodo(periodo, b))
             partes.append(
-                f'<div style="font-size:{b * 0.78:.2f}pt; font-weight:600;'
-                f' color:{CORES["tinta_fraca"]}; margin-top:{round(espaco * 0.7)}px;">'
-                f"{ROTULO_PERIODO[periodo]}</div>"
-            )
-            partes.append(
-                f'<table cellspacing="0" cellpadding="{round(5 * ESCALA)}"'
+                f'<table cellspacing="0" cellpadding="{round(6 * ESCALA)}"'
                 ' width="100%">'
             )
             for evento in do_periodo:
@@ -238,8 +313,10 @@ def montar_html(titulo: str, dias: list[tuple[date, list[Evento]]], base: float)
 
     emitido = date.today().strftime("%d/%m/%Y")
     partes.append(
-        f'<div style="font-size:{b * 0.78:.2f}pt; color:{CORES["tinta_fraca"]};'
-        f' margin-top:{espaco}px;">{total} serviço(s) · emitido em {emitido}</div>'
+        f'<div style="margin-top:{espaco}px; border-top:{fio} solid'
+        f' {CORES["pauta_forte"]};"></div>'
+        f'<div style="font-size:{b * 0.78:.2f}pt; color:{CORES["tinta_fraca"]};">'
+        f"{total} serviço(s) · emitido em {emitido}</div>"
         "</body></html>"
     )
     return "".join(partes)
