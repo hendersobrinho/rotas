@@ -213,10 +213,11 @@ def _cabecalho(
     largura: int,
     empilhado: bool = False,
 ) -> str:
-    """Faixa de abertura: logotipo, período e o resumo por tipo de serviço.
+    """Abertura da folha: logotipo, período e o resumo por tipo de serviço.
 
-    Na folha estreita tudo vai empilhado — lado a lado, o título quebraria em
-    três linhas e as pastilhas ficariam picadas.
+    Sem fundo atrás do logotipo — ele aparece sozinho, no papel. O fio
+    tricolor separa o cabeçalho do conteúdo na folha larga; na estreita ele
+    só roubaria espaço, então fica de fora.
     """
     chips = "&nbsp;&nbsp;".join(
         _pastilha(f"{glifo} {nome} {total}", cor, fundo, b * 0.8)
@@ -224,10 +225,10 @@ def _cabecalho(
         for cor, fundo in [cores_da_etiqueta(estilo)]
         for glifo in [glifo_da_etiqueta(estilo)]
     )
-    altura_logo = round(b * (2.0 if empilhado else 2.4))
+    altura_logo = round(b * (3.0 if empilhado else 3.4))
     largura_logo = round(altura_logo * 273 / 110)
     fio = max(2, round(ESCALA * 1.2))
-    recheio = round((5 if empilhado else 7) * ESCALA)
+    recheio = round(4 * ESCALA)
     logotipo = f'<img src="{URL_LOGO}" width="{largura_logo}" height="{altura_logo}">'
     texto = (
         f'<div style="font-size:{b * 1.25:.2f}pt; font-weight:600;'
@@ -238,8 +239,8 @@ def _cabecalho(
 
     if empilhado:
         corpo = (
-            f'<tr><td style="background:{CORES["marca_clara"]};">'
-            f'<div style="margin-bottom:{round(b * 0.4)}px;">{logotipo}</div>'
+            f"<tr><td>"
+            f'<div style="margin-bottom:{round(b * 0.5)}px;">{logotipo}</div>'
             f"{texto}"
             + (f'<div style="margin-top:{round(b * 0.45)}px;">{chips}</div>'
                if chips else "")
@@ -247,22 +248,22 @@ def _cabecalho(
         )
     else:
         corpo = (
-            f'<tr><td width="1%" valign="middle"'
-            f' style="background:{CORES["marca_clara"]};">{logotipo}</td>'
-            f'<td valign="middle" style="background:{CORES["marca_clara"]};'
-            f' padding-left:{round(10 * ESCALA)}px;">{texto}</td>'
-            f'<td align="right" valign="middle"'
-            f' style="background:{CORES["marca_clara"]};">{chips}</td></tr>'
+            f'<tr><td width="1%" valign="middle">{logotipo}</td>'
+            f'<td valign="middle" style="padding-left:{round(12 * ESCALA)}px;">'
+            f"{texto}</td>"
+            f'<td align="right" valign="middle">{chips}</td></tr>'
         )
 
-    return (
+    folha = (
         f'<table width="100%" cellspacing="0" cellpadding="{recheio}">'
         + corpo
         + "</table>"
-        # O fio tricolor vai como imagem: tabela aninhada não estica até a
-        # borda no texto rico do Qt.
-        f'<img src="{URL_FIO}" width="{largura}" height="{fio}">'
     )
+    if empilhado:
+        return folha
+    # O fio vai como imagem: tabela aninhada não estica até a borda no texto
+    # rico do Qt.
+    return folha + f'<img src="{URL_FIO}" width="{largura}" height="{fio}">'
 
 
 def _titulo_do_dia(dia: date, quantos: int, b: float) -> str:

@@ -212,9 +212,9 @@ def cadastros_e_painel(janela: MainWindow) -> None:
 
 def marca_visivel(janela: MainWindow) -> None:
     assert not janela.windowIcon().isNull(), "ícone da janela"
-    canto = janela.abas.cornerWidget(Qt.Corner.TopLeftCorner)
-    assert canto is not None and canto.findChildren(type(canto)) is not None
-    print("ok marca: ícone da janela e símbolo na barra de abas")
+    # A barra de abas fica limpa: o logotipo mora na tela de entrada.
+    assert janela.abas.cornerWidget(Qt.Corner.TopLeftCorner) is None
+    print("ok marca: ícone da janela, barra de abas sem logotipo")
 
 
 def conexao() -> None:

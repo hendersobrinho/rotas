@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
-    QLabel,
     QVBoxLayout,
     QMainWindow,
     QPushButton,
@@ -60,7 +58,6 @@ class MainWindow(QMainWindow):
         self.abas.addTab(self.aba_cadastros, "Cadastros")
         self.abas.addTab(self.aba_registro, "Registro")
         self.abas.setCornerWidget(self._canto_usuario())
-        self.abas.setCornerWidget(self._canto_marca(), Qt.Corner.TopLeftCorner)
         self.abas.currentChanged.connect(self._ao_trocar_aba)
         central = QWidget()
         coluna = QVBoxLayout(central)
@@ -97,16 +94,6 @@ class MainWindow(QMainWindow):
         elif indice == self.ABA_REGISTRO:
             self.aba_registro.recarregar_usuarios()
             self.aba_registro.recarregar()
-
-    def _canto_marca(self) -> QWidget:
-        """O símbolo da casa, à esquerda das abas."""
-        caixa = QWidget()
-        linha = QHBoxLayout(caixa)
-        linha.setContentsMargins(14, 2, 10, 2)
-        simbolo = QLabel()
-        simbolo.setPixmap(marca_visual.pixmap(20, simbolo=True))
-        linha.addWidget(simbolo)
-        return caixa
 
     def _canto_usuario(self) -> QWidget:
         """Quem está conectado e o botão de sair, no canto da barra de abas."""

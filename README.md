@@ -298,12 +298,13 @@ réguas como fios de 0,085 mm em vez dos traços de 0,34 mm que saíam antes.
 ## Visual
 
 A identidade vem do logotipo do escritório (`app/recursos/logo.svg`): azul
-escuro `#203461`, ciano `#4BBDCD` e laranja `#F9B259`. As três cores aparecem
-como um fio fino — na tela de entrada, no rodapé da janela e no alto de cada
-PDF —, o símbolo fica à esquerda das abas e vira o ícone da janela, e o
-logotipo inteiro abre a tela de entrada e os relatórios. Essas cores são a
-moldura do sistema; os dados continuam com a própria paleta, que passou pela
-validação de daltonismo.
+escuro `#203461`, ciano `#4BBDCD` e laranja `#F9B259`. O logotipo abre a tela
+de entrada e cada relatório; o símbolo é o ícone da janela. O fio das três
+cores aparece na tela de entrada, no rodapé da janela e, no PDF, só na folha
+larga — na estreita do celular ele roubaria espaço. A área de trabalho fica
+limpa de marca, para não competir com o conteúdo. Essas cores são a moldura do
+sistema; os dados continuam com a própria paleta, que passou pela validação de
+daltonismo.
 
 O app tem tema claro próprio e não acompanha o tema escuro do sistema: a
 paleta, as fontes e a folha de estilo ficam todas em `app/ui/estilo.py`, e

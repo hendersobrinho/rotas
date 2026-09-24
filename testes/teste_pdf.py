@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 app = QApplication([])
 
 from app.ui.datas import inicio_da_semana  # noqa: E402
+from app.ui.estilo import CORES  # noqa: E402
 from app.ui.relatorio_pdf import (  # noqa: E402
     FORMATOS,
     FormatoPdf,
@@ -36,7 +37,11 @@ semana = carregar_dias(inicio, inicio + timedelta(days=6))
 html_tabela = montar_html("Teste", dia, 9.5, "tabela")
 html_lista = montar_html("Teste", dia, 8.0, "lista")
 assert 'src="marca-rotas"' in html_tabela and 'src="marca-rotas"' in html_lista
-assert 'src="fio-marca"' in html_tabela, "fio tricolor no cabeçalho"
+assert 'src="fio-marca"' in html_tabela, "fio tricolor na folha larga"
+assert 'src="fio-marca"' not in html_lista, "sem fio tricolor na folha do celular"
+assert CORES["marca_clara"] not in html_tabela.split("</table>")[0], (
+    "sem faixa de fundo atrás do logotipo"
+)
 assert "#203461" in html_tabela, "azul da marca no cabeçalho"
 
 # o fio é imagem: confere as três cores direto nos pixels

@@ -44,7 +44,7 @@ class LoginDialog(QDialog):
         self.setStyleSheet(f"QDialog {{ background: {CORES['papel']}; }}")
 
         marca = QLabel()
-        marca.setPixmap(marca_visual.pixmap(46))
+        marca.setPixmap(marca_visual.pixmap(72))
         subtitulo = rotulo(
             "Crie o usuário que vai administrar o sistema."
             if self.primeiro_acesso
