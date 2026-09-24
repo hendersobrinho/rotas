@@ -19,14 +19,17 @@ from PySide6.QtWidgets import (
 
 from app.models import Evento, StatusEvento, TipoServico
 from app.ui.datas import DIAS_SEMANA, inicio_da_semana, titulo_mes
-from app.ui.estilo import COR_SERVICO, CORES, FONTE_DADOS, marcar
+from app.ui.estilo import (
+    CORES,
+    FONTE_DADOS,
+    cores_da_etiqueta,
+    glifo_da_etiqueta,
+    marcar,
+)
 from app.ui.widgets import rotulo
 
 LINHAS = 6
 MAX_ETIQUETAS = 3
-
-# Glifos de forma diferente para quem não distingue as cores.
-GLIFO_SERVICO = {TipoServico.COLETA: "●", TipoServico.RETIRADA: "▲"}
 
 
 def primeiro_dia_da_grade(mes: date) -> date:
@@ -108,7 +111,7 @@ class CelulaDia(QFrame):
 
         visiveis = eventos[:MAX_ETIQUETAS]
         for etiqueta, evento in zip(self._etiquetas, visiveis):
-            cor, fundo = COR_SERVICO[evento.tipo_servico]
+            cor, fundo = cores_da_etiqueta(evento.tipo_servico.estilo)
             cancelado = evento.status is StatusEvento.CANCELADO
             if cancelado:
                 cor, fundo = CORES["tinta_fraca"], CORES["cinza_claro"]
@@ -120,7 +123,8 @@ class CelulaDia(QFrame):
             fonte.setStrikeOut(cancelado)
             etiqueta.setFont(fonte)
             etiqueta.definir_texto(
-                f"{GLIFO_SERVICO[evento.tipo_servico]}  {evento.cliente.nome_exibicao}"
+                f"{glifo_da_etiqueta(evento.tipo_servico.estilo)}  "
+                f"{evento.cliente.nome_exibicao}"
             )
             etiqueta.setVisible(True)
         for etiqueta in self._etiquetas[len(visiveis):]:
@@ -205,6 +209,10 @@ class CalendarioMensal(QWidget):
         cabecalho.addWidget(anterior)
         cabecalho.addWidget(proximo)
         cabecalho.addWidget(botao_hoje)
+        self._acoes = QHBoxLayout()
+        self._acoes.setSpacing(6)
+        cabecalho.addSpacing(6)
+        cabecalho.addLayout(self._acoes)
         cabecalho.addStretch(1)
         cabecalho.addWidget(self._legenda())
         cabecalho.addSpacing(18)
@@ -263,18 +271,31 @@ class CalendarioMensal(QWidget):
 
     def _legenda(self) -> QWidget:
         caixa = QWidget()
-        layout = QHBoxLayout(caixa)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(14)
-        for servico in TipoServico:
-            cor, _ = COR_SERVICO[servico]
-            item = QLabel(
-                f'<span style="color:{cor}">{GLIFO_SERVICO[servico]}</span>'
-                f'&nbsp;{servico.value}'
-            )
-            marcar(item, papel="fraco")
-            layout.addWidget(item)
+        self._legenda_layout = QHBoxLayout(caixa)
+        self._legenda_layout.setContentsMargins(0, 0, 0, 0)
+        self._legenda_layout.setSpacing(14)
         return caixa
+
+    def definir_legenda(self, tipos: list[TipoServico]) -> None:
+        """A legenda é montada a partir dos tipos de serviço cadastrados."""
+        while self._legenda_layout.count():
+            item = self._legenda_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+        for tipo in tipos:
+            cor, _ = cores_da_etiqueta(tipo.estilo)
+            etiqueta = QLabel(
+                f'<span style="color:{cor}">{glifo_da_etiqueta(tipo.estilo)}</span>'
+                f"&nbsp;{tipo.nome}"
+            )
+            marcar(etiqueta, papel="fraco")
+            self._legenda_layout.addWidget(etiqueta)
+
+    def adicionar_acao(self, botao: QWidget) -> None:
+        """Botões extras ao lado da navegação do mês."""
+        self._acoes.addWidget(botao)
 
     # ---------------------------------------------------------------- estado
     @property

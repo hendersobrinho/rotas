@@ -322,7 +322,7 @@ class ClientesTab(QWidget):
                     linha,
                     (
                         evento.data.strftime("%d/%m/%Y"),
-                        evento.tipo_servico.value,
+                        evento.tipo_servico.nome,
                         evento.status.value,
                     ),
                     dado=evento.data,
@@ -331,7 +331,9 @@ class ClientesTab(QWidget):
                     [
                         f"Período: {evento.periodo.value}",
                         f"Endereço: {_rotulo_endereco(evento)}",
-                        f"Solicitante: {evento.solicitante or '—'}",
+                        "Solicitante: "
+                        + (evento.solicitante.nome_exibicao
+                           if evento.solicitante else "—"),
                     ]
                 )
                 for coluna in range(tabela.columnCount()):

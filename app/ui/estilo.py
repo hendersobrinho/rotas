@@ -11,7 +11,7 @@ from __future__ import annotations
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QWidget
 
-from app.models import Periodo, StatusEvento, TipoServico
+from app.models import Periodo, StatusEvento
 
 FONTE_UI = "Inter"
 FONTE_DADOS = "JetBrains Mono"
@@ -37,11 +37,49 @@ CORES = {
     "vermelho_claro": "#FEECEB",
 }
 
-# Coleta é azul-caneta; retirada é laranja-carimbo.
-COR_SERVICO = {
-    TipoServico.COLETA: (CORES["azul"], CORES["azul_claro"]),
-    TipoServico.RETIRADA: (CORES["carimbo"], CORES["carimbo_claro"]),
+# Paleta oferecida no cadastro de tipos de serviço.
+#
+# São quatro e não mais: com o validador de paletas do guia de visualização,
+# nenhum conjunto de cinco cores escuras o bastante para servir de texto passou
+# na separação entre TODOS os pares, inclusive nas simulações de daltonismo.
+# Estas quatro passam em tudo (pior par: ΔE 9,3 em protanopia; 15,9 na visão
+# normal). Cada uma vem com um glifo de forma diferente, para a cor nunca ser
+# a única pista.
+#
+# Cada entrada é (cor do texto, fundo da pastilha, preenchimento de barra,
+# glifo, nome). O texto é mais escuro que a barra: pastilha pede contraste de
+# leitura (5,6:1 ou mais aqui), barra pede contraste de mancha.
+PALETA_ETIQUETA: dict[str, tuple[str, str, str, str, str]] = {
+    "azul": ("#1B4AA0", "#E9EEFC", "#1E56B8", "●", "Azul"),
+    "laranja": ("#8F3310", "#FBEDE5", "#C2410C", "▲", "Laranja"),
+    "verde": ("#0B6B56", "#E3F3EF", "#0E8A6E", "■", "Verde"),
+    "roxo": ("#6425D0", "#F2EDFE", "#7E3AF2", "◆", "Roxo"),
 }
+ESTILO_PADRAO = "azul"
+
+
+def _slot(estilo: str | None) -> tuple[str, str, str, str, str]:
+    return PALETA_ETIQUETA.get(estilo or "", PALETA_ETIQUETA[ESTILO_PADRAO])
+
+
+def cores_da_etiqueta(estilo: str | None) -> tuple[str, str]:
+    """Cor do texto e do fundo da pastilha de um tipo de serviço."""
+    texto, fundo, _, _, _ = _slot(estilo)
+    return texto, fundo
+
+
+def preenchimento_da_etiqueta(estilo: str | None) -> str:
+    """Cor de mancha, para as barras do painel."""
+    return _slot(estilo)[2]
+
+
+def glifo_da_etiqueta(estilo: str | None) -> str:
+    return _slot(estilo)[3]
+
+
+def nome_da_etiqueta(estilo: str | None) -> str:
+    return _slot(estilo)[4]
+
 
 COR_STATUS = {
     StatusEvento.PENDENTE: (CORES["tinta_media"], CORES["cinza_claro"]),

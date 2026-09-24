@@ -70,14 +70,20 @@ app/
 │   └── eventos.py         CRUD de eventos, filtros, histórico, mudança de status
 └── ui/
     ├── estilo.py          tema claro: paleta, fontes e folha de estilo
-    ├── main_window.py     janela com as abas Clientes e Agenda
-    ├── clientes_tab.py    lista, ficha do cliente, endereços e histórico
+    ├── main_window.py     janela com as abas Agenda, Clientes, Painel e Cadastros
     ├── eventos_tab.py     calendário do mês e a folha do dia
     ├── calendario.py      a grade do mês
-    ├── datas.py           nomes de meses e dias, e o agrupamento por período
     ├── evento_dialog.py   diálogo de inclusão e edição de um serviço
+    ├── clientes_tab.py    lista, ficha do cliente, endereços e histórico
+    ├── cadastros.py       tipos de serviço e solicitantes
+    ├── painel_tab.py      indicadores e gráficos do período
+    ├── graficos.py        barras desenhadas com QPainter
+    ├── relatorio_pdf.py   emissão do PDF da agenda
+    ├── datas.py           datas em português, agrupamento e intervalos
     ├── widgets.py         etiquetas, botões segmentados, tabelas e endereço
     └── mensagens.py       caixas de erro e confirmação
+scripts/
+└── migrar_tipos_e_solicitantes.py   migração para o formato com cadastros
 ```
 
 A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
@@ -102,6 +108,16 @@ A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
   período vira uma faixa com o rótulo e a quantidade de serviços; nada é
   escondido, só organizado. A semana começa no domingo, igual ao calendário.
 
+### Cadastros
+
+- **Tipos de serviço**: Coleta e Retirada vêm prontos, e você cria os que quiser
+  (*Entrega de guia*, *Malote*...). Cada tipo tem uma cor da paleta, que carrega
+  junto um símbolo próprio (● ▲ ■ ◆) — a cor nunca é a única pista. Um tipo em
+  uso não pode ser excluído; desmarque *Ativo* para tirá-lo das novas marcações
+  sem mexer no histórico.
+- **Solicitantes**: quem pede o serviço, com o setor. Aparecem prontos na lista
+  ao marcar um serviço, e dá para cadastrar na hora, sem sair do diálogo.
+
 ### Agenda
 
 A aba abre no **mês inteiro**. Cada dia lista o apelido dos clientes que têm
@@ -120,6 +136,28 @@ data preenchida. Clicar num serviço abre o mesmo diálogo para editar.
   histórico; o botão *Excluir* apaga a linha de vez.
 - Excluir um cliente apaga também seus endereços e serviços (a tela avisa
   quantos serão perdidos).
+- **Baixa rápida**: cada linha da folha do dia tem um botão redondo na borda
+  direita. Um clique marca como concluído; o mesmo botão desfaz.
+
+### Painel
+
+Indicadores e gráficos do período escolhido — **semana**, **mês** ou **ano** —
+com as setas navegando de um período a outro: total, pendentes, concluídos e
+cancelados; serviços ao longo do período (por dia, ou por mês quando o período
+é o ano); por tipo de serviço, cada um na sua cor; e os oito primeiros clientes
+e solicitantes. Passar o mouse numa barra mostra o número exato.
+
+### PDF da agenda
+
+O botão *Emitir PDF* aparece no cabeçalho do mês e na folha do dia. Sai o dia ou
+a semana, em dois formatos:
+
+- **A4**, para imprimir ou mandar por e-mail;
+- **Celular**, uma página estreita (95 × 170 mm) que preenche a tela do telefone
+  sem precisar de zoom.
+
+Cada serviço sai com quadradinho para marcar, tipo, cliente, endereço completo,
+telefone, situação e quem pediu. O PDF é vetorial: amplia sem embaçar.
 
 ## Visual
 
@@ -131,6 +169,19 @@ acento e laranja-carimbo para as retiradas. Texto em **Inter**; **JetBrains
 Mono** só nos números e nas etiquetas. Se alguma dessas fontes não estiver
 instalada, o Qt cai para a fonte padrão do sistema sem quebrar nada.
 
+## Migração
+
+Nas primeiras versões o tipo de serviço era um ENUM nativo e o solicitante um
+texto solto. Quem já tem banco desse formato roda uma vez:
+
+```bash
+.venv/bin/python scripts/migrar_tipos_e_solicitantes.py
+```
+
+Ele cria as tabelas novas, transforma os valores antigos em cadastro e troca as
+colunas por chaves estrangeiras. Pode rodar de novo sem estragar nada — cada
+passo confere antes se já foi feito. Em banco novo, não há o que migrar.
+
 ## Notas técnicas
 
 - Os enums são gravados no banco pelo **nome** (`PF`, `COLETA`, `MANHA`), e o
@@ -139,5 +190,12 @@ instalada, o Qt cai para a fonte padrão do sistema sem quebrar nada.
   depois que a sessão fecha — é o que permite montar as telas com eles.
 - Cada ação da interface abre e fecha sua própria sessão (`session_scope`), com
   commit no fim e rollback em caso de erro.
-- Não há Alembic: as tabelas são criadas por `create_all`. Se o modelo mudar
-  depois que já houver dados em produção, o ideal é adicionar migrações.
+- Não há Alembic: as tabelas são criadas por `create_all`, e mudanças de formato
+  entram como scripts em `scripts/`.
+- A paleta dos tipos de serviço tem **quatro** cores, e não mais: nenhum conjunto
+  de cinco cores escuras o bastante para servir de texto passou na separação
+  entre todos os pares nas simulações de daltonismo. As quatro escolhidas passam
+  em tudo (pior par: ΔE 9,3 em protanopia). O detalhe está comentado em
+  `app/ui/estilo.py`.
+- Os gráficos do painel são desenhados com `QPainter`, sem dependência de
+  biblioteca de gráficos.

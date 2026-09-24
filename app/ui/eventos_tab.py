@@ -22,12 +22,20 @@ from app.db import session_scope
 from app.models import Cliente, Evento, Periodo, StatusEvento
 from app.repository import clientes as repo_clientes
 from app.repository import eventos as repo_eventos
+from app.repository import tipos_servico as repo_tipos
 from app.schemas import FiltroEventos
 from app.ui.calendario import CalendarioMensal
 from app.ui.datas import data_por_extenso
-from app.ui.estilo import COR_SERVICO, COR_STATUS, CORES, ROTULO_PERIODO, marcar
+from app.ui.estilo import (
+    COR_STATUS,
+    CORES,
+    ROTULO_PERIODO,
+    cores_da_etiqueta,
+    marcar,
+)
 from app.ui.evento_dialog import EventoDialog
 from app.ui.mensagens import mostrar_erro
+from app.ui.relatorio_pdf import RelatorioDialog
 from app.ui.widgets import Etiqueta, cartao, rotulo
 
 
@@ -46,6 +54,7 @@ class LinhaEvento(QFrame):
     """Um serviço na folha do dia, pautado como numa agenda de papel."""
 
     escolhido = Signal(int)
+    baixa_pedida = Signal(int, object)  # id do serviço, situação nova
 
     def __init__(self, evento: Evento, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -53,7 +62,7 @@ class LinhaEvento(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._pintar(CORES["papel"])
 
-        cor_servico, _ = COR_SERVICO[evento.tipo_servico]
+        cor_servico, _ = cores_da_etiqueta(evento.tipo_servico.estilo)
         cancelado = evento.status is StatusEvento.CANCELADO
         if cancelado:
             cor_servico = CORES["tinta_fraca"]
@@ -62,7 +71,7 @@ class LinhaEvento(QFrame):
         faixa.setFixedWidth(3)
         faixa.setStyleSheet(f"background: {cor_servico}; border-radius: 2px;")
 
-        servico = QLabel(evento.tipo_servico.value)
+        servico = QLabel(evento.tipo_servico.nome)
         servico.setStyleSheet(
             f"color: {cor_servico}; font-weight: 600; font-size: 13px;"
         )
@@ -89,8 +98,8 @@ class LinhaEvento(QFrame):
             if evento.endereco is not None
             else "Endereço não informado"
         ]
-        if evento.solicitante:
-            detalhes.append(f"Pedido por {evento.solicitante}")
+        if evento.solicitante is not None:
+            detalhes.append(f"Pedido por {evento.solicitante.nome_exibicao}")
         texto = QLabel(" · ".join(detalhes))
         texto.setWordWrap(True)
         marcar(texto, papel="fraco")
@@ -101,10 +110,43 @@ class LinhaEvento(QFrame):
         coluna.addWidget(texto)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setContentsMargins(16, 12, 14, 12)
         layout.setSpacing(12)
         layout.addWidget(faixa)
         layout.addLayout(coluna)
+        layout.addWidget(
+            self._botao_baixa(evento), 0, Qt.AlignmentFlag.AlignVCenter
+        )
+
+    def _botao_baixa(self, evento: Evento) -> QPushButton:
+        """Baixa num clique: encaixado na borda de fora da linha."""
+        pendente = evento.status is StatusEvento.PENDENTE
+        botao = QPushButton("✓" if pendente else "↺")
+        botao.setFixedSize(34, 34)
+        botao.setCursor(Qt.CursorShape.PointingHandCursor)
+        if pendente:
+            botao.setToolTip("Dar baixa — marcar como concluído")
+            novo = StatusEvento.CONCLUIDO
+            estilo = (
+                f"background: {CORES['verde_claro']}; color: {CORES['verde']};"
+                f"border: 1px solid #C6E4D4;"
+            )
+            passagem = f"background: {CORES['verde']}; color: #FFFFFF;"
+        else:
+            botao.setToolTip("Voltar para pendente")
+            novo = StatusEvento.PENDENTE
+            estilo = (
+                f"background: {CORES['papel_suave']}; color: {CORES['tinta_fraca']};"
+                f"border: 1px solid {CORES['pauta']};"
+            )
+            passagem = f"background: {CORES['cinza_claro']}; color: {CORES['tinta']};"
+        botao.setStyleSheet(
+            f"QPushButton {{ {estilo} border-radius: 17px; font-size: 15px;"
+            " font-weight: 600; padding: 0; }"
+            f"QPushButton:hover {{ {passagem} border-radius: 17px; }}"
+        )
+        botao.clicked.connect(lambda: self.baixa_pedida.emit(self._evento_id, novo))
+        return botao
 
     def _pintar(self, fundo: str) -> None:
         self.setStyleSheet(
@@ -157,6 +199,10 @@ class EventosTab(QWidget):
         self.calendario.dia_aberto.connect(self.abrir_dia)
         self.calendario.mes_mudou.connect(self._carregar_periodo)
 
+        pdf = QPushButton("Emitir PDF")
+        pdf.clicked.connect(lambda: self._emitir_pdf(None))
+        self.calendario.adicionar_acao(pdf)
+
         pagina = QWidget()
         layout = QVBoxLayout(pagina)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -173,6 +219,9 @@ class EventosTab(QWidget):
         marcar(self.titulo_dia, papel="titulo")
         self.resumo_dia = rotulo("", "fraco")
 
+        pdf = QPushButton("Emitir PDF")
+        pdf.clicked.connect(lambda: self._emitir_pdf(self._dia))
+
         novo = QPushButton("Incluir serviço")
         marcar(novo, variante="primario")
         novo.clicked.connect(self._novo)
@@ -186,6 +235,7 @@ class EventosTab(QWidget):
         cabecalho.setSpacing(12)
         cabecalho.addLayout(textos)
         cabecalho.addStretch(1)
+        cabecalho.addWidget(pdf, 0, Qt.AlignmentFlag.AlignVCenter)
         cabecalho.addWidget(novo, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self.faixas: dict[Periodo, QVBoxLayout] = {}
@@ -233,11 +283,15 @@ class EventosTab(QWidget):
 
     # ---------------------------------------------------------------- dados
     def recarregar_clientes(self) -> None:
+        """Relê clientes e tipos de serviço — a legenda do mês sai dos tipos."""
         try:
             with session_scope() as sessao:
                 self._clientes = repo_clientes.listar_clientes(sessao)
+                tipos = repo_tipos.listar(sessao, apenas_ativos=True)
         except Exception as erro:
-            mostrar_erro(self, erro, "Erro ao listar clientes")
+            mostrar_erro(self, erro, "Erro ao carregar clientes e tipos")
+            return
+        self.calendario.definir_legenda(tipos)
 
     def recarregar(self) -> None:
         """Relê o mês visível e, se estiver dentro de um dia, relê o dia."""
@@ -312,6 +366,7 @@ class EventosTab(QWidget):
             for evento in do_periodo:
                 linha = LinhaEvento(evento)
                 linha.escolhido.connect(self._editar)
+                linha.baixa_pedida.connect(self._mudar_status)
                 linha.setSizePolicy(
                     QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
                 )
@@ -342,6 +397,19 @@ class EventosTab(QWidget):
         dialogo = EventoDialog(self, self._clientes, evento=evento)
         if dialogo.exec() == EventoDialog.DialogCode.Accepted:
             self._apos_mudanca()
+
+    def _emitir_pdf(self, dia: date | None) -> None:
+        RelatorioDialog(self, dia or date.today()).exec()
+
+    def _mudar_status(self, evento_id: int, novo: StatusEvento) -> None:
+        """Baixa rápida, sem abrir o diálogo."""
+        try:
+            with session_scope() as sessao:
+                repo_eventos.alterar_status(sessao, evento_id, novo)
+        except Exception as erro:
+            mostrar_erro(self, erro, "Não deu para mudar a situação")
+            return
+        self._apos_mudanca()
 
     def _apos_mudanca(self) -> None:
         self.recarregar()

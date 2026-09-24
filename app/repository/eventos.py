@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Cliente, Evento, StatusEvento
+from app.models import Cliente, Evento, StatusEvento, TipoServico
 from app.schemas import DadosEvento, FiltroEventos
 
 _CAMPOS_EVENTO = (
     "cliente_id",
     "endereco_id",
-    "tipo_servico",
+    "tipo_servico_id",
     "data",
     "periodo",
-    "solicitante",
+    "solicitante_id",
     "status",
 )
 
@@ -30,15 +32,14 @@ def listar_eventos(
         consulta = consulta.where(Evento.cliente_id == filtro.cliente_id)
     if filtro.status is not None:
         consulta = consulta.where(Evento.status == filtro.status)
-    if filtro.tipo_servico is not None:
-        consulta = consulta.where(Evento.tipo_servico == filtro.tipo_servico)
+    if filtro.tipo_servico_id is not None:
+        consulta = consulta.where(Evento.tipo_servico_id == filtro.tipo_servico_id)
+    if filtro.solicitante_id is not None:
+        consulta = consulta.where(Evento.solicitante_id == filtro.solicitante_id)
     if filtro.data_inicio is not None:
         consulta = consulta.where(Evento.data >= filtro.data_inicio)
     if filtro.data_fim is not None:
         consulta = consulta.where(Evento.data <= filtro.data_fim)
-    if filtro.termo and filtro.termo.strip():
-        padrao = f"%{filtro.termo.strip()}%"
-        consulta = consulta.where(Evento.solicitante.ilike(padrao))
 
     consulta = consulta.order_by(Evento.data.desc(), Evento.id.desc())
     return list(sessao.scalars(consulta).unique())
@@ -121,7 +122,81 @@ def _validar(sessao: Session, dados: DadosEvento) -> None:
     if dados.data is None:
         raise ValueError("A data do evento é obrigatória.")
 
+    if sessao.get(TipoServico, dados.tipo_servico_id) is None:
+        raise ValueError("Escolha um tipo de serviço válido.")
+
     if dados.endereco_id is not None:
         ids_validos = {endereco.id for endereco in cliente.enderecos}
         if dados.endereco_id not in ids_validos:
             raise ValueError("O endereço escolhido não pertence a este cliente.")
+
+
+# --------------------------------------------------------------- indicadores
+def resumo_por_tipo(
+    sessao: Session, inicio: date, fim: date
+) -> list[tuple[str, str, int]]:
+    """(nome do tipo, estilo, quantidade) no intervalo, do maior para o menor."""
+    consulta = (
+        select(TipoServico.nome, TipoServico.estilo, func.count(Evento.id))
+        .join(Evento, Evento.tipo_servico_id == TipoServico.id)
+        .where(Evento.data.between(inicio, fim))
+        .group_by(TipoServico.nome, TipoServico.estilo)
+        .order_by(func.count(Evento.id).desc(), TipoServico.nome)
+    )
+    return [(nome, estilo, int(total)) for nome, estilo, total in sessao.execute(consulta)]
+
+
+def resumo_por_status(
+    sessao: Session, inicio: date, fim: date
+) -> dict[StatusEvento, int]:
+    consulta = (
+        select(Evento.status, func.count(Evento.id))
+        .where(Evento.data.between(inicio, fim))
+        .group_by(Evento.status)
+    )
+    return {status: int(total) for status, total in sessao.execute(consulta)}
+
+
+def resumo_por_cliente(
+    sessao: Session, inicio: date, fim: date, limite: int = 8
+) -> list[tuple[str, int]]:
+    rotulo = func.coalesce(Cliente.apelido, Cliente.nome)
+    consulta = (
+        select(rotulo, func.count(Evento.id))
+        .join(Evento, Evento.cliente_id == Cliente.id)
+        .where(Evento.data.between(inicio, fim))
+        .group_by(rotulo)
+        .order_by(func.count(Evento.id).desc(), rotulo)
+        .limit(limite)
+    )
+    return [(nome, int(total)) for nome, total in sessao.execute(consulta)]
+
+
+def resumo_por_solicitante(
+    sessao: Session, inicio: date, fim: date, limite: int = 8
+) -> list[tuple[str, int]]:
+    from app.models import Solicitante
+
+    rotulo = func.concat(
+        Solicitante.nome,
+        func.coalesce(func.concat(" · ", Solicitante.setor), ""),
+    )
+    consulta = (
+        select(rotulo, func.count(Evento.id))
+        .join(Evento, Evento.solicitante_id == Solicitante.id)
+        .where(Evento.data.between(inicio, fim))
+        .group_by(rotulo)
+        .order_by(func.count(Evento.id).desc(), rotulo)
+        .limit(limite)
+    )
+    return [(nome, int(total)) for nome, total in sessao.execute(consulta)]
+
+
+def contagem_por_dia(sessao: Session, inicio: date, fim: date) -> dict[date, int]:
+    """Serviços por dia no intervalo — base das barras do painel."""
+    consulta = (
+        select(Evento.data, func.count(Evento.id))
+        .where(Evento.data.between(inicio, fim))
+        .group_by(Evento.data)
+    )
+    return {dia: int(total) for dia, total in sessao.execute(consulta)}

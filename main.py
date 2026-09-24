@@ -6,7 +6,8 @@ import sys
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from app.db import init_db, url_mascarada
+from app.db import init_db, session_scope, url_mascarada
+from app.repository import tipos_servico as repo_tipos
 from app.ui.estilo import aplicar_tema
 from app.ui.main_window import MainWindow
 
@@ -30,6 +31,8 @@ def main() -> int:
 
     try:
         init_db()
+        with session_scope() as sessao:
+            repo_tipos.garantir_padrao(sessao)
     except Exception as erro:
         QMessageBox.critical(
             None,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import enum
+from calendar import monthrange
 from datetime import date, timedelta
 from typing import Iterable, Sequence
 
@@ -87,3 +88,58 @@ def agrupar(
     return [
         (rotulo_do_periodo(inicio, modo), lista) for inicio, lista in grupos.items()
     ]
+
+
+def intervalo_do_periodo(referencia: date, modo: Agrupamento) -> tuple[date, date]:
+    """Primeiro e último dia do período que contém a data de referência."""
+    if modo is Agrupamento.SEMANA:
+        inicio = inicio_da_semana(referencia)
+        return inicio, inicio + timedelta(days=6)
+    if modo is Agrupamento.MES:
+        inicio = referencia.replace(day=1)
+        ultimo = monthrange(inicio.year, inicio.month)[1]
+        return inicio, inicio.replace(day=ultimo)
+    return date(referencia.year, 1, 1), date(referencia.year, 12, 31)
+
+
+def andar_periodo(referencia: date, modo: Agrupamento, passos: int) -> date:
+    """Move a referência alguns períodos para frente ou para trás."""
+    if modo is Agrupamento.SEMANA:
+        return referencia + timedelta(weeks=passos)
+    if modo is Agrupamento.MES:
+        mes = referencia.month + passos
+        ano = referencia.year + (mes - 1) // 12
+        return date(ano, (mes - 1) % 12 + 1, 1)
+    return date(referencia.year + passos, 1, 1)
+
+
+def rotulo_intervalo(inicio: date, fim: date, modo: Agrupamento) -> str:
+    if modo is Agrupamento.ANO:
+        return str(inicio.year)
+    if modo is Agrupamento.MES:
+        return titulo_mes(inicio)
+    return rotulo_do_periodo(inicio, Agrupamento.SEMANA)
+
+
+def fatias_do_periodo(
+    inicio: date, fim: date, modo: Agrupamento
+) -> list[tuple[str, date, date]]:
+    """Divisões do eixo do tempo: dias na semana e no mês, meses no ano."""
+    if modo is Agrupamento.ANO:
+        fatias = []
+        for mes in range(1, 13):
+            primeiro = date(inicio.year, mes, 1)
+            ultimo = primeiro.replace(day=monthrange(inicio.year, mes)[1])
+            fatias.append((MESES[mes - 1][:3], primeiro, ultimo))
+        return fatias
+
+    fatias = []
+    dia = inicio
+    while dia <= fim:
+        if modo is Agrupamento.SEMANA:
+            texto = f"{DIAS_SEMANA[(dia.weekday() + 1) % 7]}\n{dia.day}"
+        else:
+            texto = str(dia.day)
+        fatias.append((texto, dia, dia))
+        dia += timedelta(days=1)
+    return fatias

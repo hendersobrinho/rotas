@@ -6,6 +6,7 @@ import enum
 from datetime import date, datetime
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     Enum as SAEnum,
@@ -34,11 +35,6 @@ class TipoEndereco(enum.Enum):
     COMERCIAL = "Comercial"
 
 
-class TipoServico(enum.Enum):
-    COLETA = "Coleta"
-    RETIRADA = "Retirada"
-
-
 class Periodo(enum.Enum):
     MANHA = "Manhã"
     TARDE = "Tarde"
@@ -48,6 +44,51 @@ class StatusEvento(enum.Enum):
     PENDENTE = "Pendente"
     CONCLUIDO = "Concluído"
     CANCELADO = "Cancelado"
+
+
+class TipoServico(Base):
+    """Tipo de serviço cadastrável: Coleta, Retirada, o que o escritório criar."""
+
+    __tablename__ = "tipos_servico"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str] = mapped_column(String(60), nullable=False, unique=True)
+    # Chave de uma cor da paleta (app/ui/estilo.py), não um código de cor:
+    # assim o tema pode mudar sem precisar mexer nos dados.
+    estilo: Mapped[str] = mapped_column(String(20), nullable=False, default="azul")
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    eventos: Mapped[list["Evento"]] = relationship(back_populates="tipo_servico")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<TipoServico id={self.id} nome={self.nome!r}>"
+
+
+class Solicitante(Base):
+    """Quem pede o serviço: uma pessoa do escritório, com o setor dela."""
+
+    __tablename__ = "solicitantes"
+    __table_args__ = (UniqueConstraint("nome", "setor", name="uq_solicitante_nome_setor"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str] = mapped_column(String(120), nullable=False)
+    setor: Mapped[str | None] = mapped_column(String(80))
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    eventos: Mapped[list["Evento"]] = relationship(back_populates="solicitante")
+
+    @property
+    def nome_exibicao(self) -> str:
+        return f"{self.nome} · {self.setor}" if self.setor else self.nome
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Solicitante id={self.id} nome={self.nome!r}>"
 
 
 class Cliente(Base):
@@ -157,14 +198,16 @@ class Evento(Base):
     endereco_id: Mapped[int | None] = mapped_column(
         ForeignKey("enderecos.id", ondelete="SET NULL"), index=True
     )
-    tipo_servico: Mapped[TipoServico] = mapped_column(
-        SAEnum(TipoServico, name="tipo_servico"), nullable=False
+    tipo_servico_id: Mapped[int] = mapped_column(
+        ForeignKey("tipos_servico.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     data: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     periodo: Mapped[Periodo] = mapped_column(
         SAEnum(Periodo, name="periodo"), nullable=False
     )
-    solicitante: Mapped[str | None] = mapped_column(String(120))
+    solicitante_id: Mapped[int | None] = mapped_column(
+        ForeignKey("solicitantes.id", ondelete="SET NULL"), index=True
+    )
     status: Mapped[StatusEvento] = mapped_column(
         SAEnum(StatusEvento, name="status_evento"),
         nullable=False,
@@ -179,6 +222,12 @@ class Evento(Base):
 
     cliente: Mapped[Cliente] = relationship(back_populates="eventos", lazy="joined")
     endereco: Mapped[Endereco | None] = relationship(
+        back_populates="eventos", lazy="joined"
+    )
+    tipo_servico: Mapped[TipoServico] = relationship(
+        back_populates="eventos", lazy="joined"
+    )
+    solicitante: Mapped[Solicitante | None] = relationship(
         back_populates="eventos", lazy="joined"
     )
 

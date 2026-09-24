@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
-from app.models import Periodo, StatusEvento, TipoCliente, TipoEndereco, TipoServico
+from app.models import Periodo, StatusEvento, TipoCliente, TipoEndereco
 
 
 def _limpar(texto: str | None) -> str | None:
@@ -79,23 +79,51 @@ class DadosCliente:
 
 
 @dataclass
+class DadosTipoServico:
+    nome: str
+    estilo: str = "azul"
+    ativo: bool = True
+
+    def normalizado(self) -> "DadosTipoServico":
+        return DadosTipoServico(
+            nome=(self.nome or "").strip(),
+            estilo=(self.estilo or "azul").strip(),
+            ativo=self.ativo,
+        )
+
+
+@dataclass
+class DadosSolicitante:
+    nome: str
+    setor: str | None = None
+    ativo: bool = True
+
+    def normalizado(self) -> "DadosSolicitante":
+        return DadosSolicitante(
+            nome=(self.nome or "").strip(),
+            setor=_limpar(self.setor),
+            ativo=self.ativo,
+        )
+
+
+@dataclass
 class DadosEvento:
     cliente_id: int
-    tipo_servico: TipoServico
+    tipo_servico_id: int
     data: date
     periodo: Periodo
     endereco_id: int | None = None
-    solicitante: str | None = None
+    solicitante_id: int | None = None
     status: StatusEvento = StatusEvento.PENDENTE
 
     def normalizado(self) -> "DadosEvento":
         return DadosEvento(
             cliente_id=self.cliente_id,
-            tipo_servico=self.tipo_servico,
+            tipo_servico_id=self.tipo_servico_id,
             data=self.data,
             periodo=self.periodo,
             endereco_id=self.endereco_id,
-            solicitante=_limpar(self.solicitante),
+            solicitante_id=self.solicitante_id,
             status=self.status,
         )
 
@@ -106,7 +134,7 @@ class FiltroEventos:
 
     cliente_id: int | None = None
     status: StatusEvento | None = None
-    tipo_servico: TipoServico | None = None
+    tipo_servico_id: int | None = None
+    solicitante_id: int | None = None
     data_inicio: date | None = None
     data_fim: date | None = None
-    termo: str | None = None
