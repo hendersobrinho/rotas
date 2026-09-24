@@ -212,6 +212,11 @@ class RecorrenciaDialog(QDialog):
         if not self._cliente.enderecos:
             self.campo_endereco.addItem("Sem endereço cadastrado", None)
             self.campo_endereco.setEnabled(False)
+            self.campo_ativo.setChecked(False)
+            self.campo_ativo.setEnabled(False)
+            self.campo_ativo.setText(
+                "Sem endereço, a regra fica parada"
+            )
         else:
             for endereco in self._cliente.enderecos:
                 self.campo_endereco.addItem(
@@ -296,10 +301,13 @@ class RecorrenciaDialog(QDialog):
             dados = self._dados()
             if dados.tipo_servico_id is None:
                 raise ValueError("Cadastre ao menos um tipo de serviço.")
-            if dados.endereco_id is None:
+            # Regra desligada pode ficar sem endereço: é o que permite
+            # desligar uma que perdeu o endereço do cadastro.
+            if dados.endereco_id is None and dados.ativo:
                 raise ValueError(
-                    f"“{self._cliente.nome_exibicao}” não tem endereço cadastrado."
-                    "\n\nCadastre o endereço antes de criar um serviço fixo."
+                    f"“{self._cliente.nome_exibicao}” não tem endereço"
+                    " cadastrado.\n\nCadastre o endereço, ou desmarque"
+                    " “abrir automaticamente”."
                 )
             with session_scope() as sessao:
                 if self._regra_id is None:

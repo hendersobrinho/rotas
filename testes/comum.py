@@ -125,6 +125,8 @@ def semear(com_eventos: bool = True) -> dict:
             # Só clientes com endereço entram na agenda: serviço sem endereço
             # não é aceito pelo repositório.
             atendiveis = [c for c in clientes if c.enderecos]
+            if not atendiveis:
+                return dados
             agenda = [
                 (0, 0, "Coleta", Periodo.MANHA, StatusEvento.PENDENTE),
                 (0, 1, "Entrega de guia", Periodo.MANHA, StatusEvento.CONCLUIDO),
@@ -143,4 +145,21 @@ def semear(com_eventos: bool = True) -> dict:
                     status=status,
                     motivo="Estabelecimento fechado"
                     if status is StatusEvento.NAO_REALIZADO else None))
+
+            # Um serviço sem endereço, gravado direto como os que existiam
+            # antes da regra: é o que mantém vivos os caminhos de "endereço
+            # não informado" nas telas e no PDF.
+            from app.models import Evento
+
+            sozinho = [c for c in clientes if not c.enderecos]
+            if sozinho:
+                sessao.add(Evento(
+                    cliente_id=sozinho[0].id,
+                    tipo_servico_id=tipos["Retirada"],
+                    data=hoje,
+                    periodo=Periodo.TARDE,
+                    solicitante_id=pessoas[0],
+                    status=StatusEvento.PENDENTE,
+                ))
+                sessao.flush()
     return dados

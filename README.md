@@ -386,5 +386,14 @@ offscreen, então não abre janela nenhuma.
   biblioteca de gráficos.
 - `eventos.endereco_id` continua aceitando nulo no banco, mesmo com o endereço
   virando obrigatório: o que foi marcado antes da regra segue válido, e apagar
-  um endereço não pode apagar o histórico de quem já foi atendido nele. Quem
-  exige é a camada de repositório, em toda inclusão e edição.
+  um endereço do cadastro não pode apagar o histórico de quem já foi atendido
+  nele (`ON DELETE SET NULL`). Quem exige é a camada de repositório, e ela
+  trata os três casos: serviço novo sempre precisa de endereço; serviço que já
+  estava sem endereço continua editável **se** o cliente também não tiver
+  nenhum para escolher; e um serviço sem endereço cujo cliente tem endereços
+  não é salvo nem remarcado sem que alguém escolha um — a tela avisa e não
+  escolhe sozinha, para o serviço não trocar de destino no silêncio.
+- Serviço fixo sem endereço fica **parado**: a regra pode ser guardada e
+  desligada (senão não haveria como desligar uma que perdeu o endereço), mas a
+  geração automática pula as regras sem endereço e anota isso no registro de
+  atividades, em vez de abrir serviços sem destino.

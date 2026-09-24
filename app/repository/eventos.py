@@ -104,7 +104,9 @@ def atualizar_evento(sessao: Session, evento_id: int, dados: DadosEvento) -> Eve
         raise ValueError(f"Evento {evento_id} não encontrado.")
 
     dados = dados.normalizado()
-    _validar(sessao, dados)
+    # Um serviço que já estava sem endereço pode ser editado assim mesmo; o
+    # que não pode é um serviço novo nascer sem, nem este perder o que tem.
+    _validar(sessao, dados, tolerar_sem_endereco=evento.endereco_id is None)
 
     for campo in _CAMPOS_EVENTO:
         setattr(evento, campo, getattr(dados, campo))
@@ -172,6 +174,11 @@ def reagendar(
             f"Este serviço já foi remarcado para "
             f"{original.remarcacao.data.strftime('%d/%m/%Y')}."
         )
+    # A remarcação copia o endereço do original: se ele estiver vazio e o
+    # cliente tiver endereço, não dá para abrir o serviço novo sem destino.
+    validar_endereco(
+        original.cliente, original.endereco_id, tolerar_nulo=True
+    )
 
     nao_realizado(sessao, evento_id, motivo)
 
@@ -247,7 +254,33 @@ def _descrever(evento: Evento) -> str:
     )
 
 
-def _validar(sessao: Session, dados: DadosEvento) -> None:
+def validar_endereco(
+    cliente: Cliente, endereco_id: int | None, tolerar_nulo: bool = False
+) -> None:
+    """Sem endereço o motoboy não tem para onde ir: marcar exige um.
+
+    `tolerar_nulo` existe para o que já está gravado sem endereço — serviços
+    anteriores à regra, ou cujo endereço foi apagado do cadastro. Nesse caso a
+    edição não fica travada, desde que o cliente também não tenha nenhum
+    endereço para escolher; havendo algum, é preciso escolher.
+    """
+    if endereco_id is None:
+        if tolerar_nulo and not cliente.enderecos:
+            return
+        if not cliente.enderecos:
+            raise ValueError(
+                f"“{cliente.nome_exibicao}” não tem endereço cadastrado.\n\n"
+                "Cadastre o endereço na aba Clientes antes de marcar o serviço."
+            )
+        raise ValueError("Escolha o endereço do serviço.")
+
+    if endereco_id not in {endereco.id for endereco in cliente.enderecos}:
+        raise ValueError("O endereço escolhido não pertence a este cliente.")
+
+
+def _validar(
+    sessao: Session, dados: DadosEvento, tolerar_sem_endereco: bool = False
+) -> None:
     cliente = sessao.get(Cliente, dados.cliente_id)
     if cliente is None:
         raise ValueError("Selecione um cliente válido para o evento.")
@@ -257,18 +290,7 @@ def _validar(sessao: Session, dados: DadosEvento) -> None:
     if sessao.get(TipoServico, dados.tipo_servico_id) is None:
         raise ValueError("Escolha um tipo de serviço válido.")
 
-    # Sem endereço o motoboy não tem para onde ir: é obrigatório.
-    if dados.endereco_id is None:
-        if not cliente.enderecos:
-            raise ValueError(
-                f"“{cliente.nome_exibicao}” não tem endereço cadastrado.\n\n"
-                "Cadastre o endereço na aba Clientes antes de marcar o serviço."
-            )
-        raise ValueError("Escolha o endereço do serviço.")
-
-    ids_validos = {endereco.id for endereco in cliente.enderecos}
-    if dados.endereco_id not in ids_validos:
-        raise ValueError("O endereço escolhido não pertence a este cliente.")
+    validar_endereco(cliente, dados.endereco_id, tolerar_sem_endereco)
 
 
 # --------------------------------------------------------------- indicadores

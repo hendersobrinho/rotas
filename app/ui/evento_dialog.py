@@ -55,6 +55,8 @@ class EventoDialog(QDialog):
         self.setStyleSheet(f"QDialog {{ background: {CORES['papel']}; }}")
 
         self._cliente_id: int | None = None
+        # Guardado para reconhecer o endereço que sumiu do cadastro.
+        self._endereco_original: int | None = evento.endereco_id if evento else None
         self.botao_cliente = QPushButton()
         marcar(self.botao_cliente, variante="campo")
         self.botao_cliente.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -292,15 +294,19 @@ class EventoDialog(QDialog):
         self._atualizar_enderecos()
 
     def _atualizar_enderecos(self) -> None:
-        """O endereço é obrigatório: não existe opção de deixar em branco."""
+        """O endereço é obrigatório: não existe opção de deixar em branco.
+
+        A exceção é o que já está gravado sem endereço — nesses casos a lista
+        diz o que aconteceu em vez de escolher outro endereço por conta.
+        """
         anterior = self.campo_endereco.currentData()
         cliente = self._cliente_atual()
         self.campo_endereco.clear()
+        self.aviso_endereco.setVisible(False)
 
         if cliente is None:
             self.campo_endereco.addItem("Escolha o cliente primeiro", None)
             self.campo_endereco.setEnabled(False)
-            self.aviso_endereco.setVisible(False)
             return
 
         if not cliente.enderecos:
@@ -314,12 +320,39 @@ class EventoDialog(QDialog):
             return
 
         self.campo_endereco.setEnabled(True)
-        self.aviso_endereco.setVisible(False)
+        # Serviço já gravado sem endereço, com endereços disponíveis: nada é
+        # escolhido no lugar. Pode ser um registro antigo ou um endereço que
+        # saiu do cadastro — de qualquer jeito, quem decide é a pessoa, e não
+        # a ordem da lista.
+        precisa_escolher = (
+            self._evento_id is not None and self._endereco_original is None
+        )
+        if precisa_escolher:
+            self.campo_endereco.addItem("Escolha o endereço", None)
+            self.aviso_endereco.setText(
+                "Este serviço está sem endereço — pode ter sido apagado do"
+                " cadastro. Escolha um para poder salvar."
+            )
+            self.aviso_endereco.setVisible(True)
+
         for endereco in cliente.enderecos:
             self.campo_endereco.addItem(
                 f"{endereco.tipo.value} — {endereco.resumo()}", endereco.id
             )
-        selecionar_dado(self.campo_endereco, anterior)
+        if precisa_escolher and anterior is None:
+            self.campo_endereco.setCurrentIndex(0)
+        else:
+            selecionar_dado(self.campo_endereco, anterior)
+
+    def _pode_ficar_sem_endereco(self) -> bool:
+        """Só o que já estava sem endereço, e não tem de onde escolher."""
+        cliente = self._cliente_atual()
+        return (
+            self._evento_id is not None
+            and self._endereco_original is None
+            and cliente is not None
+            and not cliente.enderecos
+        )
 
     def _dados(self) -> DadosEvento:
         cliente_id = self._cliente_id
@@ -332,12 +365,15 @@ class EventoDialog(QDialog):
             )
         if self.campo_endereco.currentData() is None:
             cliente = self._cliente_atual()
-            if cliente is not None and not cliente.enderecos:
+            if self._pode_ficar_sem_endereco():
+                pass  # registro antigo: a edição continua permitida
+            elif cliente is not None and not cliente.enderecos:
                 raise ValueError(
                     f"“{cliente.nome_exibicao}” não tem endereço cadastrado.\n\n"
                     "Cadastre o endereço na aba Clientes antes de marcar."
                 )
-            raise ValueError("Escolha o endereço do serviço.")
+            else:
+                raise ValueError("Escolha o endereço do serviço.")
         solicitante_id = self.campo_solicitante.currentData()
         if solicitante_id == NOVO_SOLICITANTE:
             solicitante_id = None

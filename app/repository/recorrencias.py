@@ -198,7 +198,13 @@ def gerar(
     regras = list(sessao.scalars(consulta.options(joinedload(Recorrencia.cliente))).unique())
 
     criados: list[Evento] = []
+    ignoradas: list[Recorrencia] = []
     for regra in regras:
+        # A geração não passa por criar_evento, então a régua do endereço
+        # precisa valer aqui também: regra sem endereço fica parada.
+        if regra.endereco_id is None:
+            ignoradas.append(regra)
+            continue
         datas = ocorrencias(regra, inicio, fim)
         if not datas:
             continue
@@ -232,7 +238,22 @@ def gerar(
             f"{len(criados)} serviço(s) aberto(s) automaticamente até "
             f"{fim.strftime('%d/%m/%Y')}",
         )
+    if ignoradas:
+        repo_logs.registrar(
+            sessao, AcaoLog.ALTERACAO, EntidadeLog.EVENTO,
+            f"{len(ignoradas)} serviço(s) fixo(s) sem endereço não foram"
+            " abertos: "
+            + ", ".join(sorted({r.cliente.nome_exibicao for r in ignoradas})),
+        )
     return criados
+
+
+def listar_sem_endereco(sessao: Session) -> list[Recorrencia]:
+    """Regras ligadas que perderam o endereço — não abrem nada até arrumar."""
+    consulta = select(Recorrencia).where(
+        Recorrencia.ativo.is_(True), Recorrencia.endereco_id.is_(None)
+    )
+    return list(sessao.scalars(consulta).unique())
 
 
 def contar_gerados(sessao: Session, recorrencia_id: int) -> int:
@@ -261,12 +282,18 @@ def _validar(sessao: Session, dados: DadosRecorrencia) -> None:
             raise ValueError("O dia do mês precisa estar entre 1 e 31.")
 
     cliente = sessao.get(Cliente, dados.cliente_id)
-    if dados.endereco_id is None:
+    if dados.endereco_id is not None:
+        if dados.endereco_id not in {e.id for e in cliente.enderecos}:
+            raise ValueError("O endereço escolhido não pertence a este cliente.")
+    elif dados.ativo:
+        # Só a regra ligada precisa de endereço. Sem essa folga, uma regra que
+        # perdeu o endereço não poderia nem ser desligada.
         if not cliente.enderecos:
             raise ValueError(
                 f"“{cliente.nome_exibicao}” não tem endereço cadastrado.\n\n"
-                "Cadastre o endereço antes de criar um serviço fixo."
+                "Cadastre o endereço, ou desmarque “abrir automaticamente”."
             )
-        raise ValueError("Escolha o endereço do serviço fixo.")
-    if dados.endereco_id not in {e.id for e in cliente.enderecos}:
-        raise ValueError("O endereço escolhido não pertence a este cliente.")
+        raise ValueError(
+            "Escolha o endereço do serviço fixo, ou desmarque"
+            " “abrir automaticamente”."
+        )
