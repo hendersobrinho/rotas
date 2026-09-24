@@ -217,7 +217,53 @@ def marca_visivel(janela: MainWindow) -> None:
     print("ok marca: ícone da janela e símbolo na barra de abas")
 
 
+def conexao() -> None:
+    """A tela de conexão lê, testa e grava sem estragar o resto do .env."""
+    import os
+
+    from app import configuracao
+    from app.ui.conexao_dialog import ConexaoDialog
+
+    original = configuracao.ARQUIVO
+    temporario = original.parent / "testes" / ".dados" / "env-de-teste"
+    temporario.parent.mkdir(parents=True, exist_ok=True)
+    temporario.write_text(
+        "# comentário que precisa sobreviver\n"
+        "ROTAS_SQL_ECHO=0\n"
+        "ROTAS_DB_HOST=localhost\n",
+        encoding="utf-8",
+    )
+    configuracao.ARQUIVO = temporario
+    guardado = dict(os.environ)
+    try:
+        dialogo = ConexaoDialog(None)
+        assert dialogo.campos["banco"].text(), "abre com o que está valendo"
+
+        dialogo.campos["senha"].setText("senha-errada-de-proposito")
+        assert dialogo._testar() is False
+        assert "Não conectou" in dialogo.resposta.text()
+
+        for nome, valor in configuracao.ler().items():
+            dialogo.campos[nome].setText(valor)
+        assert dialogo._testar() is True, dialogo.resposta.text()
+        assert "Conectou em PostgreSQL" in dialogo.resposta.text()
+
+        dialogo._salvar()
+        assert dialogo.salvou
+        gravado = temporario.read_text(encoding="utf-8")
+        assert "# comentário que precisa sobreviver" in gravado
+        assert "ROTAS_SQL_ECHO=0" in gravado, "o que não é conexão fica"
+        assert "ROTAS_DB_NAME=" in gravado and "ROTAS_DB_USER=" in gravado
+        assert oct(temporario.stat().st_mode)[-3:] == "600", "senha não fica legível"
+    finally:
+        configuracao.ARQUIVO = original
+        os.environ.clear()
+        os.environ.update(guardado)
+    print("ok conexão: testa antes de salvar e preserva o resto do arquivo")
+
+
 entrada()
+conexao()
 janela = MainWindow()
 janela.resize(1320, 880)
 janela.show()

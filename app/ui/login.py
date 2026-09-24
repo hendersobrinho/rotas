@@ -127,8 +127,13 @@ class LoginDialog(QDialog):
         entrar.clicked.connect(self._entrar)
         sair = QPushButton("Fechar")
         sair.clicked.connect(self.reject)
+        conexao = QPushButton("Conexão...")
+        marcar(conexao, variante="fantasma")
+        conexao.setToolTip("Configurar onde fica o banco de dados")
+        conexao.clicked.connect(self._configurar_conexao)
 
         rodape = QHBoxLayout()
+        rodape.addWidget(conexao)
         rodape.addStretch(1)
         rodape.addWidget(sair)
         rodape.addWidget(entrar)
@@ -169,6 +174,20 @@ class LoginDialog(QDialog):
             estado = deduzido if deduzido is not None else self._caps
         self._caps = estado
         self.aviso_caps.setText("⇪  Caps Lock ligado" if estado else "")
+
+    def _configurar_conexao(self) -> None:
+        """Dá para arrumar o banco sem estar logado — é antes do login."""
+        from app.ui.conexao_dialog import ConexaoDialog
+
+        if ConexaoDialog(self).exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            with session_scope() as sessao:
+                self.primeiro_acesso = not repo_usuarios.existe_algum(sessao)
+        except Exception as erro:
+            mostrar_erro(self, erro, "Ainda não deu para falar com o banco")
+            return
+        self._avisar("Conexão salva. Entre de novo.")
 
     def _avisar(self, texto: str) -> None:
         self.aviso.setText(texto)

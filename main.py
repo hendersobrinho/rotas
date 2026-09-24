@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog
 
 from app import sessao as sessao_app
 from app.db import init_db, session_scope, url_mascarada
+from app.repository import recorrencias as repo_recorrencias
 from app.repository import tipos_servico as repo_tipos
+from app.ui.conexao_dialog import ConexaoDialog
 from app.ui.estilo import aplicar_tema
 from app.ui.login import LoginDialog, entrar_pelo_token
 from app.ui.main_window import MainWindow
@@ -24,19 +26,23 @@ def _carregar_env() -> None:
 
 
 def _preparar_banco() -> bool:
-    try:
-        init_db()
-        with session_scope() as sessao:
-            repo_tipos.garantir_padrao(sessao)
-    except Exception as erro:
-        QMessageBox.critical(
-            None,
-            "Erro de conexão",
-            "Não foi possível conectar ao PostgreSQL e preparar as tabelas.\n\n"
-            f"URL: {url_mascarada()}\n\n{erro}",
-        )
-        return False
-    return True
+    """Prepara o banco; se não conectar, abre a tela de conexão e tenta de novo."""
+    while True:
+        try:
+            init_db()
+            with session_scope() as sessao:
+                repo_tipos.garantir_padrao(sessao)
+            return True
+        except Exception as erro:
+            dialogo = ConexaoDialog(
+                None,
+                aviso=(
+                    f"Não deu para falar com o banco em {url_mascarada()}.\n"
+                    f"{str(getattr(erro, 'orig', erro)).splitlines()[0]}"
+                ),
+            )
+            if dialogo.exec() != QDialog.DialogCode.Accepted:
+                return False
 
 
 def _entrar() -> bool:
@@ -48,7 +54,19 @@ def _entrar() -> bool:
             return False
         usuario = dialogo.usuario
     sessao_app.definir_usuario(usuario)
+    _abrir_servicos_fixos()
     return True
+
+
+def _abrir_servicos_fixos() -> None:
+    """Os clientes fixos já entram na agenda assim que alguém abre o sistema."""
+    try:
+        with session_scope() as sessao:
+            criados = repo_recorrencias.gerar(sessao)
+        if criados:
+            print(f"{len(criados)} serviço(s) fixo(s) abertos na agenda")
+    except Exception as erro:  # não impede de usar o sistema
+        print("não deu para abrir os serviços fixos:", erro)
 
 
 def main() -> int:

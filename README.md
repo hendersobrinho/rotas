@@ -66,6 +66,7 @@ app/
 ├── db.py                  URL de conexão, engine, session_scope(), init_db()
 ├── models.py              as tabelas e os enums do domínio
 ├── schemas.py             dataclasses que a UI envia para o repository
+├── configuracao.py        leitura e gravação da conexão no .env
 ├── seguranca.py           hash de senha (PBKDF2) e tokens de sessão
 ├── sessao.py              quem está logado e o token deste computador
 ├── repository/
@@ -88,6 +89,8 @@ app/
     ├── cadastros.py       tipos de serviço, solicitantes e usuários
     ├── registro_tab.py    consulta do registro de atividades
     ├── reagendar.py       "não deu para fazer", remarcação e pendências
+    ├── recorrencia_dialog.py  regra de um serviço fixo, com prévia das datas
+    ├── conexao_dialog.py  configuração da conexão com o banco
     ├── seletor_cliente.py janela de busca de cliente
     ├── seletor_data.py    mini calendário de dia ou semana
     ├── painel_tab.py      indicadores e gráficos do período
@@ -98,12 +101,14 @@ app/
     └── mensagens.py       caixas de erro e confirmação
 testes/
 ├── comum.py               banco descartável e dados de exemplo
-├── teste_interface.py     entrada, clientes, agenda, cadastros e painel
+├── teste_interface.py     entrada, conexão, clientes, agenda, cadastros e painel
+├── teste_recorrencia.py   regras de repetição e abertura automática
 ├── teste_pdf.py           logotipo, cores, folha deitada e versão celular
 └── rodar.sh               roda tudo num banco de teste
 scripts/
 ├── migrar_tipos_e_solicitantes.py   migração para o formato com cadastros
 ├── migrar_nao_realizado.py          migração do estado "não realizado"
+├── migrar_servicos_fixos.py         migração dos serviços automáticos
 └── diagnostico_capslock.py          o que cada leitura do Caps Lock responde
 ```
 
@@ -159,6 +164,25 @@ Para conferir o que cada caminho responde na sua máquina:
 
 As senhas ficam como hash PBKDF2-SHA256 com 240 mil iterações e sal por usuário
 (`app/seguranca.py`) — nenhuma senha é gravada em texto.
+
+### Serviços automáticos
+
+Cliente fixo não precisa ser marcado toda vez. Na ficha do cliente, o cartão
+*Serviços automáticos* guarda regras de repetição:
+
+- **Toda semana**, num dia da semana;
+- **Dia da semana no mês** — *na primeira segunda-feira*, *na última sexta*;
+- **Dia fixo do mês**, com a opção de empurrar para segunda quando cair em fim
+  de semana.
+
+A tela mostra as próximas datas enquanto você monta a regra, então dá para
+conferir antes de salvar. A agenda abre os serviços dos próximos dois meses
+sozinha, toda vez que alguém entra no sistema, e o botão *Gerar agora* faz na
+hora.
+
+Três coisas que a geração respeita: nunca cria a mesma data duas vezes, não
+mexe no que já está marcado (um serviço cancelado não volta na geração
+seguinte), e apagar a regra não apaga os serviços que ela já abriu.
 
 ### Cadastros
 
@@ -249,6 +273,10 @@ sábado, igual ao calendário da agenda). Dois formatos:
 - **Celular**, uma página estreita (95 × 170 mm) em formato de lista, com corpo
   pequeno para caber bastante coisa na tela do telefone.
 
+Os serviços saem **agrupados por cidade e, dentro dela, por bairro** — que é a
+ordem em que a rota anda. Cada bloco traz a contagem, e o período (manhã ou
+tarde) vira etiqueta em cada serviço.
+
 A folha abre com uma faixa azul: o nome, o período e pastilhas com a contagem
 por tipo de serviço. No PDF da semana, cada dia com serviço ganha o número num
 selo escuro; os dias vazios viram uma linha discreta, para não comerem meia
@@ -285,6 +313,17 @@ acento e laranja-carimbo para as retiradas. Texto em **Inter**; **JetBrains
 Mono** só nos números e nas etiquetas. Se alguma dessas fontes não estiver
 instalada, o Qt cai para a fonte padrão do sistema sem quebrar nada.
 
+## Conexão com o banco pela tela
+
+O botão *Conexão...* na tela de entrada abre a configuração: servidor, porta,
+banco, usuário e senha. O botão *Testar conexão* responde com a versão do
+PostgreSQL, e só depois de testar é que o *Salvar* grava — no próprio `.env`,
+preservando o que não é conexão e deixando o arquivo legível só para você
+(permissão 600).
+
+Se o sistema não conseguir falar com o banco ao abrir, essa mesma tela aparece
+com o erro em cima, em vez de o programa simplesmente fechar.
+
 ## Migração
 
 Nas primeiras versões o tipo de serviço era um ENUM nativo e o solicitante um
@@ -303,6 +342,12 @@ criados antes dessa versão:
 
 ```bash
 .venv/bin/python scripts/migrar_nao_realizado.py
+```
+
+Para os serviços automáticos:
+
+```bash
+.venv/bin/python scripts/migrar_servicos_fixos.py
 ```
 
 As tabelas de usuários, sessões e registro de atividades são criadas sozinhas

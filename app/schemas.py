@@ -9,7 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
-from app.models import Periodo, StatusEvento, TipoCliente, TipoEndereco
+from app.models import (
+    FrequenciaRecorrencia,
+    Periodo,
+    StatusEvento,
+    TipoCliente,
+    TipoEndereco,
+)
 
 
 def _limpar(texto: str | None) -> str | None:
@@ -102,6 +108,38 @@ class DadosSolicitante:
         return DadosSolicitante(
             nome=(self.nome or "").strip(),
             setor=_limpar(self.setor),
+            ativo=self.ativo,
+        )
+
+
+@dataclass
+class DadosRecorrencia:
+    """Regra de um serviço fixo, como a tela a descreve."""
+
+    cliente_id: int
+    tipo_servico_id: int
+    frequencia: FrequenciaRecorrencia
+    periodo: Periodo = Periodo.MANHA
+    endereco_id: int | None = None
+    solicitante_id: int | None = None
+    dia_semana: int | None = None
+    ordinal: int | None = None
+    dia_mes: int | None = None
+    apenas_util: bool = True
+    ativo: bool = True
+
+    def normalizado(self) -> "DadosRecorrencia":
+        return DadosRecorrencia(
+            cliente_id=self.cliente_id,
+            tipo_servico_id=self.tipo_servico_id,
+            frequencia=self.frequencia,
+            periodo=self.periodo,
+            endereco_id=self.endereco_id,
+            solicitante_id=self.solicitante_id,
+            dia_semana=self.dia_semana,
+            ordinal=self.ordinal,
+            dia_mes=self.dia_mes,
+            apenas_util=self.apenas_util,
             ativo=self.ativo,
         )
 

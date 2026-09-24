@@ -49,6 +49,14 @@ class StatusEvento(enum.Enum):
     CANCELADO = "Cancelado"
 
 
+class FrequenciaRecorrencia(enum.Enum):
+    """Como um serviço fixo se repete."""
+
+    SEMANAL = "Toda semana"
+    MENSAL_ORDINAL = "Dia da semana no mês"   # 1ª segunda, última sexta...
+    MENSAL_DIA = "Dia fixo do mês"
+
+
 class AcaoLog(enum.Enum):
     """O que aconteceu, no registro de atividades."""
 
@@ -186,6 +194,54 @@ class Solicitante(Base):
         return f"<Solicitante id={self.id} nome={self.nome!r}>"
 
 
+class Recorrencia(Base):
+    """Serviço fixo de um cliente, que a agenda abre sozinha."""
+
+    __tablename__ = "recorrencias"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cliente_id: Mapped[int] = mapped_column(
+        ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    endereco_id: Mapped[int | None] = mapped_column(
+        ForeignKey("enderecos.id", ondelete="SET NULL")
+    )
+    tipo_servico_id: Mapped[int] = mapped_column(
+        ForeignKey("tipos_servico.id", ondelete="RESTRICT"), nullable=False
+    )
+    solicitante_id: Mapped[int | None] = mapped_column(
+        ForeignKey("solicitantes.id", ondelete="SET NULL")
+    )
+    periodo: Mapped[Periodo] = mapped_column(
+        SAEnum(Periodo, name="periodo"), nullable=False, default=Periodo.MANHA
+    )
+    frequencia: Mapped[FrequenciaRecorrencia] = mapped_column(
+        SAEnum(FrequenciaRecorrencia, name="frequencia_recorrencia"), nullable=False
+    )
+    # Segunda = 0 ... domingo = 6, igual ao date.weekday() do Python.
+    dia_semana: Mapped[int | None] = mapped_column()
+    # 1 a 5 para "primeira" a "quinta"; -1 para "última".
+    ordinal: Mapped[int | None] = mapped_column()
+    dia_mes: Mapped[int | None] = mapped_column()
+    # Caindo em sábado ou domingo, empurra para a segunda seguinte.
+    apenas_util: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    criada_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    cliente: Mapped["Cliente"] = relationship(
+        back_populates="recorrencias", lazy="joined"
+    )
+    endereco: Mapped["Endereco | None"] = relationship(lazy="joined")
+    tipo_servico: Mapped["TipoServico"] = relationship(lazy="joined")
+    solicitante: Mapped["Solicitante | None"] = relationship(lazy="joined")
+    eventos: Mapped[list["Evento"]] = relationship(back_populates="recorrencia")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Recorrencia id={self.id} cliente={self.cliente_id}>"
+
+
 class Cliente(Base):
     __tablename__ = "clientes"
 
@@ -211,6 +267,9 @@ class Cliente(Base):
         back_populates="cliente",
         cascade="all, delete-orphan",
         order_by="Evento.data.desc()",
+    )
+    recorrencias: Mapped[list["Recorrencia"]] = relationship(
+        back_populates="cliente", cascade="all, delete-orphan"
     )
 
     @property
@@ -310,6 +369,10 @@ class Evento(Base):
     )
     # Por que não deu (ou por que foi cancelado).
     motivo: Mapped[str | None] = mapped_column(Text)
+    # Quando nasceu de um serviço fixo, aponta para a regra que o criou.
+    recorrencia_id: Mapped[int | None] = mapped_column(
+        ForeignKey("recorrencias.id", ondelete="SET NULL"), index=True
+    )
     # Quando este serviço é a remarcação de outro, aponta para o original.
     origem_id: Mapped[int | None] = mapped_column(
         ForeignKey("eventos.id", ondelete="SET NULL"), index=True
@@ -333,6 +396,7 @@ class Evento(Base):
     )
     # Autorreferentes não ganham carga antecipada automática: quem consulta
     # pede com joinedload/selectinload (ver repository/eventos.py).
+    recorrencia: Mapped["Recorrencia | None"] = relationship(back_populates="eventos")
     origem: Mapped["Evento | None"] = relationship(
         remote_side="Evento.id", back_populates="remarcacoes"
     )

@@ -75,6 +75,15 @@ def session_scope() -> Iterator[Session]:
         sessao.close()
 
 
+def reiniciar() -> None:
+    """Esquece a conexão atual — usado quando a configuração muda."""
+    global _engine, _session_factory
+    if _engine is not None:
+        _engine.dispose()
+    _engine = None
+    _session_factory = None
+
+
 def init_db() -> None:
     """Cria as tabelas que ainda não existem no banco."""
     from app.models import Base  # import local evita dependência circular

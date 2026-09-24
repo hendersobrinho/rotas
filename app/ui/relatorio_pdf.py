@@ -121,6 +121,82 @@ def _mapa(evento: Evento) -> str | None:
     return f"https://www.google.com/maps/search/?api=1&amp;query={consulta}"
 
 
+SEM_CIDADE = "Sem cidade informada"
+SEM_BAIRRO = "Sem bairro informado"
+
+
+def _local(evento: Evento) -> tuple[str, str]:
+    endereco = evento.endereco
+    if endereco is None:
+        return SEM_CIDADE, SEM_BAIRRO
+    return (
+        (endereco.cidade or "").strip() or SEM_CIDADE,
+        (endereco.bairro or "").strip() or SEM_BAIRRO,
+    )
+
+
+def agrupar_por_local(
+    eventos: list[Evento],
+) -> list[tuple[str, list[tuple[str, list[Evento]]]]]:
+    """Cidade, e dentro dela o bairro — é assim que a rota se organiza.
+
+    Cidade e bairro saem em ordem alfabética, com os sem endereço no fim.
+    Dentro do bairro, manhã antes da tarde e depois pelo nome do cliente.
+    """
+    cidades: dict[str, dict[str, list[Evento]]] = {}
+    for evento in eventos:
+        cidade, bairro = _local(evento)
+        cidades.setdefault(cidade, {}).setdefault(bairro, []).append(evento)
+
+    def ordem_cidade(nome: str) -> tuple[int, str]:
+        return (1 if nome == SEM_CIDADE else 0, nome.casefold())
+
+    def ordem_bairro(nome: str) -> tuple[int, str]:
+        return (1 if nome == SEM_BAIRRO else 0, nome.casefold())
+
+    resultado = []
+    for cidade in sorted(cidades, key=ordem_cidade):
+        bairros = []
+        for bairro in sorted(cidades[cidade], key=ordem_bairro):
+            lista = sorted(
+                cidades[cidade][bairro],
+                key=lambda e: (e.periodo.name, e.cliente.nome_exibicao.casefold()),
+            )
+            bairros.append((bairro, lista))
+        resultado.append((cidade, bairros))
+    return resultado
+
+
+def _faixa_cidade(cidade: str, quantos: int, b: float) -> str:
+    """Abre o bloco da cidade."""
+    return (
+        f'<div style="font-size:{b * 0.95:.2f}pt; font-weight:600;'
+        f' color:#FFFFFF; background:{CORES["marca"]};'
+        f' margin-top:{round(b * 0.9)}px;">'
+        f"&nbsp;&nbsp;{_escapar(cidade.upper())}&nbsp;&nbsp;"
+        f'<span style="color:{CORES["ciano"]}; font-size:{b * 0.78:.2f}pt;">'
+        f"· {quantos} serviço(s)&nbsp;</span></div>"
+    )
+
+
+def _faixa_bairro(bairro: str, quantos: int, b: float) -> str:
+    return (
+        f'<div style="font-size:{b * 0.8:.2f}pt; font-weight:600;'
+        f' color:{CORES["tinta_media"]}; background:{CORES["cinza_claro"]};'
+        f' margin-top:{round(b * 0.5)}px;">'
+        f"&nbsp;{_escapar(bairro)}&nbsp;"
+        f'<span style="color:{CORES["tinta_fraca"]};">· {quantos}&nbsp;</span></div>'
+    )
+
+
+def _marca_periodo(periodo: Periodo, b: float) -> str:
+    """O período vira etiqueta dentro do serviço, já que a divisão agora é o lugar."""
+    glifo = "☀" if periodo is Periodo.MANHA else "☾"
+    fundo = CORES["laranja_claro"] if periodo is Periodo.MANHA else CORES["ciano_claro"]
+    cor = CORES["carimbo"] if periodo is Periodo.MANHA else CORES["marca"]
+    return _pastilha(f"{glifo} {ROTULO_PERIODO[periodo]}", cor, fundo, b * 0.74)
+
+
 def _pastilha(texto: str, cor: str, fundo: str, corpo: float) -> str:
     """Etiqueta com fundo — o Qt não arredonda cantos em texto rico, então
     o efeito vem do fundo colorido com respiro nas laterais."""
@@ -210,18 +286,6 @@ def _titulo_do_dia(dia: date, quantos: int, b: float) -> str:
     )
 
 
-def _faixa_periodo(periodo: Periodo, b: float) -> str:
-    glifo = "☀" if periodo is Periodo.MANHA else "☾"
-    fundo = CORES["laranja_claro"] if periodo is Periodo.MANHA else CORES["ciano_claro"]
-    cor = CORES["carimbo"] if periodo is Periodo.MANHA else CORES["marca"]
-    return (
-        f'<div style="font-size:{b * 0.78:.2f}pt; font-weight:600;'
-        f' color:{cor}; background:{fundo};'
-        f' margin-top:{round(b * 0.7)}px;">'
-        f"&nbsp;{glifo}&nbsp; {ROTULO_PERIODO[periodo]}&nbsp;</div>"
-    )
-
-
 def _bloco_servico(evento: Evento, b: float, fio: str) -> str:
     """Um serviço: barra na cor do tipo, quem é, onde, como tratar e o combinado."""
     cor, fundo = cores_da_etiqueta(evento.tipo_servico.estilo)
@@ -234,6 +298,7 @@ def _bloco_servico(evento: Evento, b: float, fio: str) -> str:
 
     linhas = [
         f'<div>{_pastilha(f"{glifo} {_escapar(evento.tipo_servico.nome)}", cor, fundo, b * 0.82)}'
+        f"&nbsp;{_marca_periodo(evento.periodo, b)}"
         f'<span style="font-size:{b * 1.12:.2f}pt; font-weight:600;'
         f' color:{CORES["tinta"]}; {risco}">'
         f"&nbsp;&nbsp;{_escapar(cliente.nome)}</span></div>"
@@ -314,8 +379,8 @@ def _bloco_servico(evento: Evento, b: float, fio: str) -> str:
 
 def _cabecalho_tabela(b: float, fio: str) -> str:
     colunas = (
-        ("", "3%"), ("Serviço", "11%"), ("Cliente", "24%"),
-        ("Endereço", "34%"), ("Quem pediu", "14%"), ("Situação", "14%"),
+        ("", "3%"), ("Período", "9%"), ("Serviço", "11%"), ("Cliente", "21%"),
+        ("Endereço", "31%"), ("Quem pediu", "12%"), ("Situação", "13%"),
     )
     celulas = "".join(
         f'<td width="{largura}" style="font-size:{b * 0.72:.2f}pt;'
@@ -403,6 +468,8 @@ def _linha_tabela(evento: Evento, b: float, fio: str) -> str:
         f'<tr><td valign="top" style="{borda} font-size:{b * 1.1:.2f}pt;'
         f' color:{CORES["tinta_fraca"]};">&#9744;</td>'
         f'<td valign="top" style="{borda}">'
+        f"{_marca_periodo(evento.periodo, b)}</td>"
+        f'<td valign="top" style="{borda}">'
         f"{_pastilha(f'{glifo} ' + _escapar(evento.tipo_servico.nome), cor, fundo, b * 0.78)}"
         "</td>"
         f'<td valign="top" style="{borda}">'
@@ -475,25 +542,28 @@ def montar_html(
         if not um_dia_so:
             partes.append(_titulo_do_dia(dia, len(eventos), b))
 
-        for periodo in Periodo:
-            do_periodo = [e for e in eventos if e.periodo is periodo]
-            if not do_periodo:
-                continue
-            partes.append(_faixa_periodo(periodo, b))
-            partes.append(
-                f'<table cellspacing="0" cellpadding="{round(6 * ESCALA)}"'
-                ' width="100%">'
-            )
-            if modo == "tabela":
-                partes.append(_cabecalho_tabela(b, fio))
-            for evento in do_periodo:
-                total += 1
+        # Primeiro a cidade, depois o bairro: é a ordem em que a rota anda.
+        for cidade, bairros in agrupar_por_local(eventos):
+            quantos_na_cidade = sum(len(lista) for _b, lista in bairros)
+            partes.append(_faixa_cidade(cidade, quantos_na_cidade, b))
+            for indice, (bairro, do_bairro) in enumerate(bairros):
+                partes.append(_faixa_bairro(bairro, len(do_bairro), b))
                 partes.append(
-                    _linha_tabela(evento, b, fio)
-                    if modo == "tabela"
-                    else _bloco_servico(evento, b, fio)
+                    f'<table cellspacing="0" cellpadding="{round(6 * ESCALA)}"'
+                    ' width="100%">'
                 )
-            partes.append("</table>")
+                # O nome das colunas aparece uma vez por cidade: as larguras
+                # são percentuais, então as tabelas dos bairros se alinham.
+                if modo == "tabela" and indice == 0:
+                    partes.append(_cabecalho_tabela(b, fio))
+                for evento in do_bairro:
+                    total += 1
+                    partes.append(
+                        _linha_tabela(evento, b, fio)
+                        if modo == "tabela"
+                        else _bloco_servico(evento, b, fio)
+                    )
+                partes.append("</table>")
 
     emitido = date.today().strftime("%d/%m/%Y")
     partes.append(

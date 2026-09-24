@@ -7,15 +7,17 @@ from datetime import date
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
-    QTableWidgetItem,
+    QDialog,
     QHBoxLayout,
     QHeaderView,
+    QMessageBox,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSplitter,
     QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -24,10 +26,12 @@ from app.db import session_scope
 from app.models import Cliente, Evento, TipoCliente, TipoEndereco
 from app.repository import clientes as repo_clientes
 from app.repository import eventos as repo_eventos
+from app.repository import recorrencias as repo_recorrencias
 from app.schemas import DadosCliente
 from app.ui.datas import Agrupamento, agrupar
 from app.ui.estilo import COR_STATUS, CORES, FONTE_DADOS, marcar
 from app.ui.mensagens import confirmar, mostrar_erro
+from app.ui.recorrencia_dialog import RecorrenciaDialog
 from app.ui.widgets import (
     EnderecoForm,
     Segmentado,
@@ -40,6 +44,7 @@ from app.ui.widgets import (
 
 COLUNAS_CLIENTES = ("Cliente", "Tipo")
 COLUNAS_HISTORICO = ("Data", "Serviço", "Situação")
+COLUNAS_FIXOS = ("Quando", "Serviço", "Período", "Situação")
 
 
 def _rotulo_endereco(evento: Evento) -> str:
@@ -176,6 +181,7 @@ class ClientesTab(QWidget):
         coluna.addWidget(self.cartao_dados)
         coluna.addWidget(self.form_residencial)
         coluna.addWidget(self.form_comercial)
+        coluna.addWidget(self._montar_fixos())
         coluna.addStretch(1)
 
         rolagem = QScrollArea()
@@ -183,6 +189,177 @@ class ClientesTab(QWidget):
         rolagem.setWidget(conteudo)
         rolagem.setMinimumWidth(480)
         return rolagem
+
+    def _montar_fixos(self) -> QWidget:
+        """Serviços que a agenda abre sozinha para este cliente."""
+        painel = cartao(plano=True)
+        coluna = QVBoxLayout(painel)
+        coluna.setContentsMargins(16, 14, 16, 16)
+        coluna.setSpacing(10)
+
+        topo = QHBoxLayout()
+        topo.addWidget(rotulo("Serviços automáticos", "secao"))
+        topo.addStretch(1)
+        self.contador_fixos = rotulo("", "fraco")
+        topo.addWidget(self.contador_fixos)
+        coluna.addLayout(topo)
+        coluna.addWidget(
+            rotulo(
+                "Cliente fixo: a agenda abre o serviço sozinha, pelos próximos"
+                " dois meses.",
+                "fraco",
+            )
+        )
+
+        self.tabela_fixos = QTableWidget()
+        configurar_tabela(self.tabela_fixos, COLUNAS_FIXOS, coluna_elastica=0)
+        self.tabela_fixos.doubleClicked.connect(lambda _i: self._editar_fixo())
+        self.tabela_fixos.setMinimumHeight(110)
+        coluna.addWidget(self.tabela_fixos)
+
+        self.btn_fixo_novo = QPushButton("Novo serviço fixo")
+        marcar(self.btn_fixo_novo, variante="primario")
+        self.btn_fixo_novo.clicked.connect(self._novo_fixo)
+        self.btn_fixo_editar = QPushButton("Editar")
+        self.btn_fixo_editar.clicked.connect(self._editar_fixo)
+        self.btn_fixo_excluir = QPushButton("Excluir")
+        marcar(self.btn_fixo_excluir, variante="perigo")
+        self.btn_fixo_excluir.clicked.connect(self._excluir_fixo)
+        self.btn_fixo_gerar = QPushButton("Gerar agora")
+        self.btn_fixo_gerar.clicked.connect(self._gerar_fixos)
+
+        acoes = QHBoxLayout()
+        acoes.addWidget(self.btn_fixo_novo)
+        acoes.addWidget(self.btn_fixo_gerar)
+        acoes.addStretch(1)
+        acoes.addWidget(self.btn_fixo_editar)
+        acoes.addWidget(self.btn_fixo_excluir)
+        coluna.addLayout(acoes)
+
+        self.cartao_fixos = painel
+        return painel
+
+    # ---------------------------------------------------------- automáticos
+    def _preencher_fixos(self) -> None:
+        if self._cliente_id is None:
+            self.tabela_fixos.setRowCount(0)
+            self.contador_fixos.setText("")
+            self.cartao_fixos.setEnabled(False)
+            return
+        try:
+            with session_scope() as sessao:
+                regras = repo_recorrencias.listar(sessao, self._cliente_id)
+                gerados = {
+                    regra.id: repo_recorrencias.contar_gerados(sessao, regra.id)
+                    for regra in regras
+                }
+        except Exception as erro:
+            mostrar_erro(self, erro, "Erro ao carregar os serviços fixos")
+            return
+
+        self.cartao_fixos.setEnabled(True)
+        self.tabela_fixos.setRowCount(len(regras))
+        for linha, regra in enumerate(regras):
+            preencher_linha(
+                self.tabela_fixos,
+                linha,
+                (
+                    repo_recorrencias.descrever(regra),
+                    regra.tipo_servico.nome,
+                    regra.periodo.value,
+                    "Ativo" if regra.ativo else "Parado",
+                ),
+                dado=regra.id,
+            )
+            item = self.tabela_fixos.item(linha, 0)
+            if item is not None:
+                item.setToolTip(f"{gerados.get(regra.id, 0)} serviço(s) já abertos")
+            if not regra.ativo:
+                for coluna in range(self.tabela_fixos.columnCount()):
+                    celula = self.tabela_fixos.item(linha, coluna)
+                    if celula is not None:
+                        celula.setForeground(QColor(CORES["tinta_fraca"]))
+        self.contador_fixos.setText(f"{len(regras)}")
+
+    def _cliente_carregado(self) -> Cliente | None:
+        if self._cliente_id is None:
+            return None
+        with session_scope() as sessao:
+            return repo_clientes.obter_cliente(sessao, self._cliente_id)
+
+    def _fixo_selecionado(self) -> int | None:
+        linhas = self.tabela_fixos.selectionModel().selectedRows()
+        if not linhas:
+            return None
+        valor = dado_da_linha(self.tabela_fixos, linhas[0].row())
+        return None if valor is None else int(valor)
+
+    def _novo_fixo(self) -> None:
+        cliente = self._cliente_carregado()
+        if cliente is None:
+            return
+        if RecorrenciaDialog(self, cliente).exec() == QDialog.DialogCode.Accepted:
+            self._preencher_fixos()
+            self.dados_alterados.emit()
+
+    def _editar_fixo(self) -> None:
+        cliente = self._cliente_carregado()
+        regra_id = self._fixo_selecionado()
+        if cliente is None or regra_id is None:
+            return
+        with session_scope() as sessao:
+            regra = repo_recorrencias.obter(sessao, regra_id)
+        if regra is None:
+            self._preencher_fixos()
+            return
+        if RecorrenciaDialog(self, cliente, regra).exec() == QDialog.DialogCode.Accepted:
+            self._preencher_fixos()
+            self.dados_alterados.emit()
+
+    def _excluir_fixo(self) -> None:
+        regra_id = self._fixo_selecionado()
+        if regra_id is None:
+            return
+        with session_scope() as sessao:
+            regra = repo_recorrencias.obter(sessao, regra_id)
+            descricao = repo_recorrencias.descrever(regra) if regra else ""
+            gerados = repo_recorrencias.contar_gerados(sessao, regra_id)
+        if not confirmar(
+            self,
+            "Excluir serviço fixo",
+            f"Parar de abrir “{descricao}”?\n\n"
+            f"Os {gerados} serviço(s) já abertos continuam na agenda.",
+        ):
+            return
+        try:
+            with session_scope() as sessao:
+                repo_recorrencias.excluir(sessao, regra_id)
+        except Exception as erro:
+            mostrar_erro(self, erro, "Não deu para excluir")
+            return
+        self._preencher_fixos()
+        self.dados_alterados.emit()
+
+    def _gerar_fixos(self) -> None:
+        """Abre agora o que as regras deste cliente já permitem abrir."""
+        if self._cliente_id is None:
+            return
+        try:
+            with session_scope() as sessao:
+                criados = repo_recorrencias.gerar(sessao, cliente_id=self._cliente_id)
+        except Exception as erro:
+            mostrar_erro(self, erro, "Não deu para gerar")
+            return
+        self._preencher_fixos()
+        self._abrir(self._cliente_id)
+        self.dados_alterados.emit()
+        QMessageBox.information(
+            self,
+            "Serviços automáticos",
+            f"{len(criados)} serviço(s) aberto(s) na agenda."
+            if criados
+            else "Não havia nada novo para abrir.",
+        )
 
     # ------------------------------------------------------------- histórico
     def _montar_historico(self) -> QWidget:
@@ -291,6 +468,7 @@ class ClientesTab(QWidget):
         self._cliente_id = cliente_id
         self._preencher_ficha(cliente)
         self._preencher_historico(historico)
+        self._preencher_fixos()
         self._modo_edicao(False)
 
     def _preencher_ficha(self, cliente: Cliente) -> None:
@@ -466,6 +644,7 @@ class ClientesTab(QWidget):
         self.form_residencial.limpar()
         self.form_comercial.limpar()
         self._preencher_historico([])
+        self._preencher_fixos()
         self.titulo_historico.setText("Histórico de serviços")
         self.titulo_ficha.setText("Escolha um cliente na lista")
         self._modo_edicao(False)

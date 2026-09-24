@@ -58,6 +58,34 @@ assert "QUEM PEDIU" in html_tabela, "cabeçalho de colunas só no modo tabela"
 assert "QUEM PEDIU" not in html_lista
 print("ok html: logotipo, cores da marca, colunas e vínculos")
 
+# ---- agrupamento por cidade e bairro ------------------------------------
+from app.ui.relatorio_pdf import SEM_CIDADE, agrupar_por_local  # noqa: E402
+
+eventos_do_dia = dia[0][1]
+grupos = agrupar_por_local(eventos_do_dia)
+nomes = [cidade for cidade, _ in grupos]
+assert nomes == sorted(
+    nomes, key=lambda n: (1 if n == SEM_CIDADE else 0, n.casefold())
+), nomes
+assert nomes[-1] == SEM_CIDADE, "quem não tem endereço fica por último"
+for cidade, bairros in grupos:
+    rotulos = [bairro for bairro, _ in bairros]
+    assert rotulos == sorted(rotulos, key=str.casefold) or "Sem bairro" in rotulos[-1]
+    for _bairro, lista in bairros:
+        periodos = [e.periodo.name for e in lista]
+        assert periodos == sorted(periodos), "manhã antes da tarde dentro do bairro"
+assert sum(len(l) for _c, bs in grupos for _b, l in bs) == len(eventos_do_dia)
+print("ok agrupamento:", " | ".join(
+    f"{cidade}: {', '.join(b for b, _ in bairros)}" for cidade, bairros in grupos))
+
+for texto in (html_tabela, html_lista):
+    assert "BELO HORIZONTE" in texto, "faixa da cidade"
+    assert "Savassi" in texto and "Floresta" in texto, "faixa do bairro"
+    assert "MANHÃ" in texto and "TARDE" in texto, "período virou etiqueta"
+posicao_cidade = html_tabela.index("BELO HORIZONTE")
+assert posicao_cidade < html_tabela.index("Savassi") < html_tabela.index("Padaria")
+print("ok relatório: cidade, depois bairro, depois os serviços")
+
 # ---- páginas -------------------------------------------------------------
 assert FORMATOS["A4"]["deitada"] is True and FORMATOS["A4"]["modo"] == "tabela"
 assert FORMATOS["Celular"]["deitada"] is False
