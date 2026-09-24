@@ -8,6 +8,7 @@ from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox,
+    QLabel,
     QLineEdit,
     QDateEdit,
     QDialog,
@@ -68,6 +69,12 @@ class EventoDialog(QDialog):
 
         self.campo_endereco = QComboBox()
         self.campo_endereco.setMinimumWidth(420)
+        self.aviso_endereco = QLabel()
+        self.aviso_endereco.setWordWrap(True)
+        self.aviso_endereco.setStyleSheet(
+            f"color: {CORES['vermelho']}; font-size: 11px;"
+        )
+        self.aviso_endereco.setVisible(False)
         self.campo_servico = QComboBox()
         self.campo_solicitante = QComboBox()
         self.campo_solicitante.activated.connect(self._ao_escolher_solicitante)
@@ -91,11 +98,15 @@ class EventoDialog(QDialog):
             rotulo("Novo serviço" if evento is None else "Editar serviço", "titulo")
         )
         conteudo.addWidget(
-            rotulo("O tipo de serviço e o solicitante vêm da aba Cadastros.", "fraco")
+            rotulo(
+                "Cliente e endereço são obrigatórios. O tipo de serviço e o"
+                " solicitante vêm da aba Cadastros.",
+                "fraco",
+            )
         )
         conteudo.addSpacing(10)
 
-        conteudo.addWidget(rotulo("Cliente", "campo"))
+        conteudo.addWidget(rotulo("Cliente *", "campo"))
         linha_cliente = QHBoxLayout()
         linha_cliente.setSpacing(6)
         linha_cliente.addWidget(self.botao_cliente, 1)
@@ -103,8 +114,9 @@ class EventoDialog(QDialog):
         conteudo.addLayout(linha_cliente)
         conteudo.addWidget(self.detalhe_cliente)
         conteudo.addSpacing(8)
-        conteudo.addWidget(rotulo("Endereço", "campo"))
+        conteudo.addWidget(rotulo("Endereço *", "campo"))
         conteudo.addWidget(self.campo_endereco)
+        conteudo.addWidget(self.aviso_endereco)
         conteudo.addSpacing(8)
         conteudo.addWidget(rotulo("Tipo de serviço", "campo"))
         conteudo.addWidget(self.campo_servico)
@@ -280,15 +292,33 @@ class EventoDialog(QDialog):
         self._atualizar_enderecos()
 
     def _atualizar_enderecos(self) -> None:
+        """O endereço é obrigatório: não existe opção de deixar em branco."""
         anterior = self.campo_endereco.currentData()
         cliente = self._cliente_atual()
         self.campo_endereco.clear()
-        self.campo_endereco.addItem("Não informar endereço", None)
-        if cliente is not None:
-            for endereco in cliente.enderecos:
-                self.campo_endereco.addItem(
-                    f"{endereco.tipo.value} — {endereco.resumo()}", endereco.id
-                )
+
+        if cliente is None:
+            self.campo_endereco.addItem("Escolha o cliente primeiro", None)
+            self.campo_endereco.setEnabled(False)
+            self.aviso_endereco.setVisible(False)
+            return
+
+        if not cliente.enderecos:
+            self.campo_endereco.addItem("Sem endereço cadastrado", None)
+            self.campo_endereco.setEnabled(False)
+            self.aviso_endereco.setText(
+                f"“{cliente.nome_exibicao}” ainda não tem endereço. "
+                "Cadastre na aba Clientes para poder marcar o serviço."
+            )
+            self.aviso_endereco.setVisible(True)
+            return
+
+        self.campo_endereco.setEnabled(True)
+        self.aviso_endereco.setVisible(False)
+        for endereco in cliente.enderecos:
+            self.campo_endereco.addItem(
+                f"{endereco.tipo.value} — {endereco.resumo()}", endereco.id
+            )
         selecionar_dado(self.campo_endereco, anterior)
 
     def _dados(self) -> DadosEvento:
@@ -300,6 +330,14 @@ class EventoDialog(QDialog):
             raise ValueError(
                 "Cadastre ao menos um tipo de serviço na aba Cadastros."
             )
+        if self.campo_endereco.currentData() is None:
+            cliente = self._cliente_atual()
+            if cliente is not None and not cliente.enderecos:
+                raise ValueError(
+                    f"“{cliente.nome_exibicao}” não tem endereço cadastrado.\n\n"
+                    "Cadastre o endereço na aba Clientes antes de marcar."
+                )
+            raise ValueError("Escolha o endereço do serviço.")
         solicitante_id = self.campo_solicitante.currentData()
         if solicitante_id == NOVO_SOLICITANTE:
             solicitante_id = None

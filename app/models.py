@@ -349,6 +349,10 @@ class Evento(Base):
     cliente_id: Mapped[int] = mapped_column(
         ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    # A regra exige endereço nos serviços novos (ver repository/eventos.py).
+    # A coluna segue aceitando nulo por dois motivos: o que foi marcado antes
+    # da regra continua válido, e apagar um endereço não pode apagar o
+    # histórico de quem já foi atendido nele.
     endereco_id: Mapped[int | None] = mapped_column(
         ForeignKey("enderecos.id", ondelete="SET NULL"), index=True
     )

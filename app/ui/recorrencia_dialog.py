@@ -112,7 +112,7 @@ class RecorrenciaDialog(QDialog):
         layout.addSpacing(8)
         layout.addWidget(rotulo("Tipo de serviço", "campo"))
         layout.addWidget(self.campo_servico)
-        layout.addWidget(rotulo("Endereço", "campo"))
+        layout.addWidget(rotulo("Endereço *", "campo"))
         layout.addWidget(self.campo_endereco)
         layout.addWidget(rotulo("Solicitante", "campo"))
         layout.addWidget(self.campo_solicitante)
@@ -207,12 +207,16 @@ class RecorrenciaDialog(QDialog):
                 Qt.ItemDataRole.ForegroundRole,
             )
 
+        # Endereço é obrigatório, aqui também: o serviço gerado precisa dele.
         self.campo_endereco.clear()
-        self.campo_endereco.addItem("Não informar endereço", None)
-        for endereco in self._cliente.enderecos:
-            self.campo_endereco.addItem(
-                f"{endereco.tipo.value} — {endereco.resumo()}", endereco.id
-            )
+        if not self._cliente.enderecos:
+            self.campo_endereco.addItem("Sem endereço cadastrado", None)
+            self.campo_endereco.setEnabled(False)
+        else:
+            for endereco in self._cliente.enderecos:
+                self.campo_endereco.addItem(
+                    f"{endereco.tipo.value} — {endereco.resumo()}", endereco.id
+                )
 
         self.campo_solicitante.clear()
         self.campo_solicitante.addItem("Não informar", None)
@@ -292,6 +296,11 @@ class RecorrenciaDialog(QDialog):
             dados = self._dados()
             if dados.tipo_servico_id is None:
                 raise ValueError("Cadastre ao menos um tipo de serviço.")
+            if dados.endereco_id is None:
+                raise ValueError(
+                    f"“{self._cliente.nome_exibicao}” não tem endereço cadastrado."
+                    "\n\nCadastre o endereço antes de criar um serviço fixo."
+                )
             with session_scope() as sessao:
                 if self._regra_id is None:
                     regra = repo_recorrencias.criar(sessao, dados)

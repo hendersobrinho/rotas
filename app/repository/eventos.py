@@ -257,10 +257,18 @@ def _validar(sessao: Session, dados: DadosEvento) -> None:
     if sessao.get(TipoServico, dados.tipo_servico_id) is None:
         raise ValueError("Escolha um tipo de serviço válido.")
 
-    if dados.endereco_id is not None:
-        ids_validos = {endereco.id for endereco in cliente.enderecos}
-        if dados.endereco_id not in ids_validos:
-            raise ValueError("O endereço escolhido não pertence a este cliente.")
+    # Sem endereço o motoboy não tem para onde ir: é obrigatório.
+    if dados.endereco_id is None:
+        if not cliente.enderecos:
+            raise ValueError(
+                f"“{cliente.nome_exibicao}” não tem endereço cadastrado.\n\n"
+                "Cadastre o endereço na aba Clientes antes de marcar o serviço."
+            )
+        raise ValueError("Escolha o endereço do serviço.")
+
+    ids_validos = {endereco.id for endereco in cliente.enderecos}
+    if dados.endereco_id not in ids_validos:
+        raise ValueError("O endereço escolhido não pertence a este cliente.")
 
 
 # --------------------------------------------------------------- indicadores

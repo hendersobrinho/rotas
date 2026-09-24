@@ -204,10 +204,12 @@ quando cancelado. Clicar num dia entra nele: a folha do dia mostra os serviços
 separados em **manhã** e **tarde**, e o botão *Incluir serviço* já chega com a
 data preenchida. Clicar num serviço abre o mesmo diálogo para editar.
 
-- Sempre ligados a um cliente, escolhido numa **janela de busca** — digitar
-  parte do nome ou do apelido filtra na hora, sem diferença de acento ou de
-  maiúsculas ("joao" acha "João"). O endereço é **opcional** e, quando
-  informado, precisa ser um dos endereços daquele cliente.
+- **Cliente e endereço são obrigatórios.** O cliente sai de uma **janela de
+  busca** — digitar parte do nome ou do apelido filtra na hora, sem diferença
+  de acento ou de maiúsculas ("joao" acha "João") —, e o endereço tem de ser um
+  dos daquele cliente. Cliente sem endereço cadastrado não aceita marcação: a
+  tela diz isso e manda cadastrar o endereço na aba Clientes. A mesma regra
+  vale para os serviços fixos.
 - Serviço **Coleta** ou **Retirada**, com data e período (**Manhã**/**Tarde**).
 - *Solicitante* é a pessoa do escritório que pediu o serviço.
 - Situação: **Pendente**, **Concluído**, **Não realizado** ou **Cancelado**,
@@ -382,3 +384,7 @@ offscreen, então não abre janela nenhuma.
   `app/ui/estilo.py`.
 - Os gráficos do painel são desenhados com `QPainter`, sem dependência de
   biblioteca de gráficos.
+- `eventos.endereco_id` continua aceitando nulo no banco, mesmo com o endereço
+  virando obrigatório: o que foi marcado antes da regra segue válido, e apagar
+  um endereço não pode apagar o histórico de quem já foi atendido nele. Quem
+  exige é a camada de repositório, em toda inclusão e edição.

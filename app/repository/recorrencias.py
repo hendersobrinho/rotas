@@ -260,7 +260,13 @@ def _validar(sessao: Session, dados: DadosRecorrencia) -> None:
         if dados.dia_mes is None or not 1 <= dados.dia_mes <= 31:
             raise ValueError("O dia do mês precisa estar entre 1 e 31.")
 
-    if dados.endereco_id is not None:
-        cliente = sessao.get(Cliente, dados.cliente_id)
-        if dados.endereco_id not in {e.id for e in cliente.enderecos}:
-            raise ValueError("O endereço escolhido não pertence a este cliente.")
+    cliente = sessao.get(Cliente, dados.cliente_id)
+    if dados.endereco_id is None:
+        if not cliente.enderecos:
+            raise ValueError(
+                f"“{cliente.nome_exibicao}” não tem endereço cadastrado.\n\n"
+                "Cadastre o endereço antes de criar um serviço fixo."
+            )
+        raise ValueError("Escolha o endereço do serviço fixo.")
+    if dados.endereco_id not in {e.id for e in cliente.enderecos}:
+        raise ValueError("O endereço escolhido não pertence a este cliente.")
