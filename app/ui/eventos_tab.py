@@ -35,6 +35,7 @@ from app.ui.estilo import (
 )
 from app.ui.evento_dialog import EventoDialog
 from app.ui.mensagens import mostrar_erro
+from app.ui.reagendar import PendenciasDialog, ReagendarDialog
 from app.ui.relatorio_pdf import RelatorioDialog
 from app.ui.widgets import Etiqueta, cartao, rotulo
 
@@ -55,6 +56,7 @@ class LinhaEvento(QFrame):
 
     escolhido = Signal(int)
     baixa_pedida = Signal(int, object)  # id do serviço, situação nova
+    remarcacao_pedida = Signal(int)
 
     def __init__(self, evento: Evento, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -100,6 +102,16 @@ class LinhaEvento(QFrame):
         ]
         if evento.solicitante is not None:
             detalhes.append(f"Pedido por {evento.solicitante.nome_exibicao}")
+        if evento.motivo:
+            detalhes.append(f"Motivo: {evento.motivo}")
+        if evento.remarcacao is not None:
+            detalhes.append(
+                f"Remarcado para {evento.remarcacao.data.strftime('%d/%m/%Y')}"
+            )
+        elif evento.origem is not None:
+            detalhes.append(
+                f"Veio do dia {evento.origem.data.strftime('%d/%m/%Y')}"
+            )
         texto = QLabel(" · ".join(detalhes))
         texto.setWordWrap(True)
         marcar(texto, papel="fraco")
@@ -114,6 +126,9 @@ class LinhaEvento(QFrame):
         layout.setSpacing(12)
         layout.addWidget(faixa)
         layout.addLayout(coluna)
+        remarcar = self._botao_remarcar(evento)
+        if remarcar is not None:
+            layout.addWidget(remarcar, 0, Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(
             self._botao_baixa(evento), 0, Qt.AlignmentFlag.AlignVCenter
         )
@@ -146,6 +161,28 @@ class LinhaEvento(QFrame):
             f"QPushButton:hover {{ {passagem} border-radius: 17px; }}"
         )
         botao.clicked.connect(lambda: self.baixa_pedida.emit(self._evento_id, novo))
+        return botao
+
+    def _botao_remarcar(self, evento: Evento) -> QPushButton | None:
+        """Só faz sentido para o que ainda pode ser remarcado."""
+        if evento.status not in (StatusEvento.PENDENTE, StatusEvento.NAO_REALIZADO):
+            return None
+        if evento.remarcacao is not None:
+            return None
+        botao = QPushButton("⤴")
+        botao.setFixedSize(34, 34)
+        botao.setCursor(Qt.CursorShape.PointingHandCursor)
+        botao.setToolTip("Não deu para fazer — registrar motivo e remarcar")
+        botao.setStyleSheet(
+            f"QPushButton {{ background: {CORES['papel_suave']};"
+            f" color: {CORES['tinta_media']};"
+            f" border: 1px solid {CORES['pauta']}; border-radius: 17px;"
+            " font-size: 15px; font-weight: 600; padding: 0; }"
+            f"QPushButton:hover {{ background: {CORES['vermelho_claro']};"
+            f" color: {CORES['vermelho']}; border-color: {CORES['vermelho']};"
+            " border-radius: 17px; }"
+        )
+        botao.clicked.connect(lambda: self.remarcacao_pedida.emit(self._evento_id))
         return botao
 
     def _pintar(self, fundo: str) -> None:
@@ -198,6 +235,15 @@ class EventosTab(QWidget):
         self.calendario = CalendarioMensal()
         self.calendario.dia_aberto.connect(self.abrir_dia)
         self.calendario.mes_mudou.connect(self._carregar_periodo)
+
+        self.btn_pendencias = QPushButton()
+        marcar(self.btn_pendencias, variante="perigo")
+        self.btn_pendencias.setToolTip(
+            "Serviços não realizados que continuam sem remarcação"
+        )
+        self.btn_pendencias.clicked.connect(self._abrir_pendencias)
+        self.btn_pendencias.setVisible(False)
+        self.calendario.adicionar_acao(self.btn_pendencias)
 
         pdf = QPushButton("Emitir PDF")
         pdf.clicked.connect(lambda: self._emitir_pdf(None))
@@ -299,6 +345,7 @@ class EventosTab(QWidget):
             inicio, fim = self.calendario.intervalo_visivel()
             self._periodo = (inicio, fim)
         self._carregar_periodo(*self._periodo)
+        self._atualizar_pendencias()
         if self._dia is not None and self.pilha.currentIndex() == self.PAGINA_DIA:
             self._desenhar_dia()
 
@@ -367,6 +414,7 @@ class EventosTab(QWidget):
                 linha = LinhaEvento(evento)
                 linha.escolhido.connect(self._editar)
                 linha.baixa_pedida.connect(self._mudar_status)
+                linha.remarcacao_pedida.connect(self._remarcar)
                 linha.setSizePolicy(
                     QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
                 )
@@ -400,6 +448,37 @@ class EventosTab(QWidget):
 
     def _emitir_pdf(self, dia: date | None) -> None:
         RelatorioDialog(self, dia or date.today()).exec()
+
+    def _remarcar(self, evento_id: int) -> None:
+        try:
+            with session_scope() as sessao:
+                evento = repo_eventos.obter_evento(sessao, evento_id)
+        except Exception as erro:
+            mostrar_erro(self, erro, "Erro ao abrir o serviço")
+            return
+        if evento is None:
+            self.recarregar()
+            return
+        if ReagendarDialog(self, evento).exec() == ReagendarDialog.DialogCode.Accepted:
+            self._apos_mudanca()
+
+    def _abrir_pendencias(self) -> None:
+        dialogo = PendenciasDialog(self)
+        dialogo.exec()
+        if dialogo.houve_mudanca:
+            self._apos_mudanca()
+        else:
+            self._atualizar_pendencias()
+
+    def _atualizar_pendencias(self) -> None:
+        """O botão só aparece quando há o que resolver."""
+        try:
+            with session_scope() as sessao:
+                total = repo_eventos.contar_pendencias(sessao)
+        except Exception:
+            total = 0
+        self.btn_pendencias.setText(f"Pendências  {total}")
+        self.btn_pendencias.setVisible(bool(total))
 
     def _mudar_status(self, evento_id: int, novo: StatusEvento) -> None:
         """Baixa rápida, sem abrir o diálogo."""

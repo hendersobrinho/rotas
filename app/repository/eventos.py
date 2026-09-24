@@ -5,13 +5,14 @@ from __future__ import annotations
 from datetime import date
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models import (
     AcaoLog,
     Cliente,
     EntidadeLog,
     Evento,
+    Periodo,
     StatusEvento,
     TipoServico,
 )
@@ -26,7 +27,18 @@ _CAMPOS_EVENTO = (
     "periodo",
     "solicitante_id",
     "status",
+    "motivo",
 )
+
+
+# O vínculo de remarcação é lido fora da sessão (as telas trabalham com o
+# objeto já solto), e relacionamento autorreferente não tem carga antecipada
+# automática — daí pedir explicitamente nas duas pontas.
+_VINCULOS = (selectinload(Evento.remarcacoes), joinedload(Evento.origem))
+
+
+def _com_remarcacoes(consulta):
+    return consulta.options(*_VINCULOS)
 
 
 def listar_eventos(
@@ -34,7 +46,7 @@ def listar_eventos(
 ) -> list[Evento]:
     """Lista eventos (mais recentes primeiro) aplicando os filtros informados."""
     filtro = filtro or FiltroEventos()
-    consulta = select(Evento)
+    consulta = _com_remarcacoes(select(Evento))
 
     if filtro.cliente_id is not None:
         consulta = consulta.where(Evento.cliente_id == filtro.cliente_id)
@@ -58,9 +70,9 @@ def historico_cliente(
 ) -> list[Evento]:
     """Histórico do cliente: seus eventos ordenados por data."""
     ordem = Evento.data.desc() if mais_recente_primeiro else Evento.data.asc()
-    consulta = (
-        select(Evento).where(Evento.cliente_id == cliente_id).order_by(ordem, Evento.id)
-    )
+    consulta = _com_remarcacoes(
+        select(Evento).where(Evento.cliente_id == cliente_id)
+    ).order_by(ordem, Evento.id)
     return list(sessao.scalars(consulta).unique())
 
 
@@ -70,7 +82,7 @@ def contar_eventos_do_cliente(sessao: Session, cliente_id: int) -> int:
 
 
 def obter_evento(sessao: Session, evento_id: int) -> Evento | None:
-    return sessao.get(Evento, evento_id)
+    return sessao.get(Evento, evento_id, options=list(_VINCULOS))
 
 
 def criar_evento(sessao: Session, dados: DadosEvento) -> Evento:
@@ -115,6 +127,95 @@ def alterar_status(sessao: Session, evento_id: int, status: StatusEvento) -> Eve
         f"{_descrever(evento)} — de {anterior.value} para {status.value}", evento.id,
     )
     return evento
+
+
+def nao_realizado(
+    sessao: Session, evento_id: int, motivo: str | None = None
+) -> Evento:
+    """Marca que o serviço não deu para fazer, guardando o porquê."""
+    evento = obter_evento(sessao, evento_id)
+    if evento is None:
+        raise ValueError(f"Evento {evento_id} não encontrado.")
+    evento.status = StatusEvento.NAO_REALIZADO
+    evento.motivo = (motivo or "").strip() or None
+    sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.ALTERACAO, EntidadeLog.EVENTO,
+        f"{_descrever(evento)} — não realizado"
+        + (f": {evento.motivo}" if evento.motivo else ""),
+        evento.id,
+    )
+    return evento
+
+
+def reagendar(
+    sessao: Session,
+    evento_id: int,
+    nova_data: date,
+    novo_periodo: Periodo | None = None,
+    motivo: str | None = None,
+) -> Evento:
+    """Fecha o serviço como não realizado e abre outro na data nova.
+
+    O serviço original não é alterado de lugar nem apagado: ele continua no
+    histórico com o motivo, e o novo aponta para ele pela coluna `origem_id`.
+    """
+    original = obter_evento(sessao, evento_id)
+    if original is None:
+        raise ValueError(f"Evento {evento_id} não encontrado.")
+    if nova_data is None:
+        raise ValueError("Escolha a data da remarcação.")
+    if nova_data < original.data:
+        raise ValueError("A remarcação precisa ser em uma data igual ou posterior.")
+    if original.remarcacao is not None:
+        raise ValueError(
+            f"Este serviço já foi remarcado para "
+            f"{original.remarcacao.data.strftime('%d/%m/%Y')}."
+        )
+
+    nao_realizado(sessao, evento_id, motivo)
+
+    novo = Evento(
+        cliente_id=original.cliente_id,
+        endereco_id=original.endereco_id,
+        tipo_servico_id=original.tipo_servico_id,
+        data=nova_data,
+        periodo=novo_periodo or original.periodo,
+        solicitante_id=original.solicitante_id,
+        status=StatusEvento.PENDENTE,
+        origem_id=original.id,
+    )
+    sessao.add(novo)
+    sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.CRIACAO, EntidadeLog.EVENTO,
+        f"{_descrever(novo)} — remarcado de "
+        f"{original.data.strftime('%d/%m/%Y')}",
+        novo.id,
+    )
+    return novo
+
+
+def listar_pendencias(sessao: Session, limite: int = 200) -> list[Evento]:
+    """Não realizados que ninguém remarcou ainda — a lista que cobra ação."""
+    consulta = (
+        _com_remarcacoes(select(Evento))
+        .where(
+            Evento.status == StatusEvento.NAO_REALIZADO,
+            ~Evento.remarcacoes.any(),
+        )
+        .order_by(Evento.data.desc(), Evento.id.desc())
+        .limit(limite)
+    )
+    return list(sessao.scalars(consulta).unique())
+
+
+def contar_pendencias(sessao: Session) -> int:
+    consulta = select(func.count(Evento.id)).where(
+        Evento.status == StatusEvento.NAO_REALIZADO,
+        ~Evento.remarcacoes.any(),
+    )
+    return int(sessao.scalar(consulta) or 0)
 
 
 def cancelar_evento(sessao: Session, evento_id: int) -> Evento:

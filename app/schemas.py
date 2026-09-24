@@ -131,6 +131,7 @@ class DadosEvento:
     endereco_id: int | None = None
     solicitante_id: int | None = None
     status: StatusEvento = StatusEvento.PENDENTE
+    motivo: str | None = None
 
     def normalizado(self) -> "DadosEvento":
         return DadosEvento(
@@ -141,6 +142,23 @@ class DadosEvento:
             endereco_id=self.endereco_id,
             solicitante_id=self.solicitante_id,
             status=self.status,
+            motivo=_limpar(self.motivo),
+        )
+
+
+@dataclass
+class DadosRemarcacao:
+    """O que a tela informa ao dizer que um serviço não deu para fazer."""
+
+    motivo: str | None = None
+    nova_data: date | None = None
+    novo_periodo: Periodo | None = None
+
+    def normalizado(self) -> "DadosRemarcacao":
+        return DadosRemarcacao(
+            motivo=_limpar(self.motivo),
+            nova_data=self.nova_data,
+            novo_periodo=self.novo_periodo,
         )
 
 

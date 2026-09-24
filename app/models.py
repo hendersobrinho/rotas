@@ -43,6 +43,9 @@ class Periodo(enum.Enum):
 class StatusEvento(enum.Enum):
     PENDENTE = "Pendente"
     CONCLUIDO = "Concluído"
+    # Não realizado: o motoboy foi (ou o dia passou) e não deu para fazer.
+    # Diferente de cancelado, que é o escritório desmarcando antes.
+    NAO_REALIZADO = "Não realizado"
     CANCELADO = "Cancelado"
 
 
@@ -305,6 +308,12 @@ class Evento(Base):
         nullable=False,
         default=StatusEvento.PENDENTE,
     )
+    # Por que não deu (ou por que foi cancelado).
+    motivo: Mapped[str | None] = mapped_column(Text)
+    # Quando este serviço é a remarcação de outro, aponta para o original.
+    origem_id: Mapped[int | None] = mapped_column(
+        ForeignKey("eventos.id", ondelete="SET NULL"), index=True
+    )
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -322,6 +331,20 @@ class Evento(Base):
     solicitante: Mapped[Solicitante | None] = relationship(
         back_populates="eventos", lazy="joined"
     )
+    # Autorreferentes não ganham carga antecipada automática: quem consulta
+    # pede com joinedload/selectinload (ver repository/eventos.py).
+    origem: Mapped["Evento | None"] = relationship(
+        remote_side="Evento.id", back_populates="remarcacoes"
+    )
+    # Sem lazy="selectin" aqui: o SQLAlchemy não aplica carga antecipada
+    # selectin em relacionamento autorreferente. Quem consulta pede a carga
+    # com selectinload() (ver repository/eventos.py).
+    remarcacoes: Mapped[list["Evento"]] = relationship(back_populates="origem")
+
+    @property
+    def remarcacao(self) -> "Evento | None":
+        """A remarcação deste serviço, se alguém já tiver feito."""
+        return self.remarcacoes[0] if self.remarcacoes else None
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Evento id={self.id} data={self.data} status={self.status.name}>"

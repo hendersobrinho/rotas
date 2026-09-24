@@ -84,6 +84,7 @@ def nome_da_etiqueta(estilo: str | None) -> str:
 COR_STATUS = {
     StatusEvento.PENDENTE: (CORES["tinta_media"], CORES["cinza_claro"]),
     StatusEvento.CONCLUIDO: (CORES["verde"], CORES["verde_claro"]),
+    StatusEvento.NAO_REALIZADO: (CORES["vermelho"], CORES["vermelho_claro"]),
     StatusEvento.CANCELADO: (CORES["tinta_fraca"], CORES["cinza_claro"]),
 }
 

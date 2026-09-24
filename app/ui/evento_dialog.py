@@ -8,6 +8,7 @@ from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox,
+    QLineEdit,
     QDateEdit,
     QDialog,
     QHBoxLayout,
@@ -72,6 +73,12 @@ class EventoDialog(QDialog):
         self.campo_solicitante.activated.connect(self._ao_escolher_solicitante)
         self.campo_periodo = Segmentado(Periodo)
         self.campo_status = Segmentado(StatusEvento)
+        self.campo_status.mudou.connect(self._ao_trocar_status)
+        self.rotulo_motivo = rotulo("Motivo", "campo")
+        self.campo_motivo = QLineEdit()
+        self.campo_motivo.setPlaceholderText(
+            "Por que não deu para fazer, ou por que foi cancelado"
+        )
 
         self.campo_data = QDateEdit()
         self.campo_data.setCalendarPopup(True)
@@ -128,6 +135,9 @@ class EventoDialog(QDialog):
         linha_status.addWidget(self.campo_status)
         linha_status.addStretch(1)
         conteudo.addLayout(linha_status)
+        conteudo.addSpacing(6)
+        conteudo.addWidget(self.rotulo_motivo)
+        conteudo.addWidget(self.campo_motivo)
 
         self.btn_excluir = QPushButton("Excluir")
         marcar(self.btn_excluir, variante="perigo")
@@ -226,6 +236,7 @@ class EventoDialog(QDialog):
             selecionar_dado(self.campo_solicitante, evento.solicitante_id)
             self.campo_periodo.definir_valor(evento.periodo)
             self.campo_status.definir_valor(evento.status)
+            self.campo_motivo.setText(evento.motivo or "")
             escolhido = evento.data
         else:
             self._definir_cliente(cliente_id)
@@ -233,6 +244,13 @@ class EventoDialog(QDialog):
             self.campo_status.definir_valor(StatusEvento.PENDENTE)
             escolhido = dia or date.today()
         self.campo_data.setDate(QDate(escolhido.year, escolhido.month, escolhido.day))
+        self._ao_trocar_status(self.campo_status.valor())
+
+    def _ao_trocar_status(self, status: StatusEvento) -> None:
+        """O motivo só interessa quando o serviço não aconteceu."""
+        precisa = status in (StatusEvento.NAO_REALIZADO, StatusEvento.CANCELADO)
+        self.rotulo_motivo.setVisible(precisa)
+        self.campo_motivo.setVisible(precisa)
 
     def _cliente_atual(self) -> Cliente | None:
         for cliente in self._clientes:
@@ -293,6 +311,7 @@ class EventoDialog(QDialog):
             periodo=self.campo_periodo.valor(),
             solicitante_id=solicitante_id,
             status=self.campo_status.valor(),
+            motivo=self.campo_motivo.text(),
         )
 
     # ------------------------------------------------------------------ ações

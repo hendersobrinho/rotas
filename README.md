@@ -85,6 +85,7 @@ app/
     ├── teclado.py         estado do Caps Lock
     ├── cadastros.py       tipos de serviço, solicitantes e usuários
     ├── registro_tab.py    consulta do registro de atividades
+    ├── reagendar.py       "não deu para fazer", remarcação e pendências
     ├── seletor_cliente.py janela de busca de cliente
     ├── seletor_data.py    mini calendário de dia ou semana
     ├── painel_tab.py      indicadores e gráficos do período
@@ -95,6 +96,7 @@ app/
     └── mensagens.py       caixas de erro e confirmação
 scripts/
 ├── migrar_tipos_e_solicitantes.py   migração para o formato com cadastros
+├── migrar_nao_realizado.py          migração do estado "não realizado"
 └── diagnostico_capslock.py          o que cada leitura do Caps Lock responde
 ```
 
@@ -177,14 +179,37 @@ data preenchida. Clicar num serviço abre o mesmo diálogo para editar.
   informado, precisa ser um dos endereços daquele cliente.
 - Serviço **Coleta** ou **Retirada**, com data e período (**Manhã**/**Tarde**).
 - *Solicitante* é a pessoa do escritório que pediu o serviço.
-- Situação: **Pendente**, **Concluído** ou **Cancelado**, trocada no próprio
-  diálogo.
+- Situação: **Pendente**, **Concluído**, **Não realizado** ou **Cancelado**,
+  trocada no próprio diálogo. Não realizado e cancelado pedem um **motivo**.
 - **Cancelar ≠ Excluir**: mudar a situação para Cancelado mantém o serviço no
   histórico; o botão *Excluir* apaga a linha de vez.
 - Excluir um cliente apaga também seus endereços e serviços (a tela avisa
   quantos serão perdidos).
 - **Baixa rápida**: cada linha da folha do dia tem um botão redondo na borda
   direita. Um clique marca como concluído; o mesmo botão desfaz.
+
+### Não deu para fazer
+
+Do lado do botão de baixa há o **⤴**, para o serviço que não deu certo no dia:
+estabelecimento fechado, ninguém para receber, documentos não prontos. Ele abre
+uma tela onde se escolhe (ou escreve) o motivo e, se for o caso, já se remarca
+para outro dia num mini calendário.
+
+O que acontece nos bastidores:
+
+- o serviço do dia **não sai do lugar nem é apagado** — fica no histórico como
+  *Não realizado*, com o motivo escrito;
+- a remarcação é um **serviço novo**, na data nova, que guarda o vínculo com o
+  original (coluna `origem_id`). Nos dois dias a agenda mostra a ligação:
+  *"Remarcado para 26/09"* e *"Veio do dia 24/09"*;
+- um serviço só pode ser remarcado uma vez, e nunca para uma data anterior à
+  original;
+- desmarcar *Remarcar para outro dia* só registra que não deu, sem abrir nada.
+
+O que não foi remarcado vira **pendência**: no cabeçalho do mês aparece um
+botão vermelho com a contagem, que abre a lista dos serviços não realizados sem
+remarcação — de lá dá para resolver um por um. Sem pendência, o botão nem
+aparece.
 
 ### Painel
 
@@ -255,6 +280,13 @@ texto solto. Quem já tem banco desse formato roda uma vez:
 Ele cria as tabelas novas, transforma os valores antigos em cadastro e troca as
 colunas por chaves estrangeiras. Pode rodar de novo sem estragar nada — cada
 passo confere antes se já foi feito. Em banco novo, não há o que migrar.
+
+Para o estado *não realizado*, o motivo e o vínculo de remarcação, em bancos
+criados antes dessa versão:
+
+```bash
+.venv/bin/python scripts/migrar_nao_realizado.py
+```
 
 As tabelas de usuários, sessões e registro de atividades são criadas sozinhas
 por `create_all` na primeira execução — não precisam de script.

@@ -126,6 +126,9 @@ class PainelTab(QWidget):
             "total": Indicador("Serviços no período", CORES["azul"]),
             "pendente": Indicador("Pendentes", COR_STATUS[StatusEvento.PENDENTE][0]),
             "concluido": Indicador("Concluídos", COR_STATUS[StatusEvento.CONCLUIDO][0]),
+            "nao_realizado": Indicador(
+                "Não realizados", COR_STATUS[StatusEvento.NAO_REALIZADO][0]
+            ),
             "cancelado": Indicador("Cancelados", COR_STATUS[StatusEvento.CANCELADO][0]),
         }
         linha = QHBoxLayout()
@@ -206,6 +209,9 @@ class PainelTab(QWidget):
         self.indicadores["total"].definir(sum(por_status.values()))
         self.indicadores["pendente"].definir(por_status.get(StatusEvento.PENDENTE, 0))
         self.indicadores["concluido"].definir(por_status.get(StatusEvento.CONCLUIDO, 0))
+        self.indicadores["nao_realizado"].definir(
+            por_status.get(StatusEvento.NAO_REALIZADO, 0)
+        )
         self.indicadores["cancelado"].definir(por_status.get(StatusEvento.CANCELADO, 0))
 
         self.grafico_tipo.definir([

@@ -216,6 +216,12 @@ def _bloco_servico(evento: Evento, b: float, fio: str) -> str:
         )
 
     rodape = [evento.status.value]
+    if evento.motivo:
+        rodape.append(evento.motivo)
+    if evento.remarcacao is not None:
+        rodape.append(f"remarcado para {evento.remarcacao.data.strftime('%d/%m')}")
+    elif evento.origem is not None:
+        rodape.append(f"veio do dia {evento.origem.data.strftime('%d/%m')}")
     if evento.solicitante is not None:
         rodape.append(f"Pedido por {evento.solicitante.nome_exibicao}")
     if cliente.telefone:
