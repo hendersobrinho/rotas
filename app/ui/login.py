@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -20,6 +20,7 @@ from app.repository import usuarios as repo_usuarios
 from app.schemas import DadosUsuario
 from app.ui.estilo import CORES, FONTE_DADOS, marcar
 from app.ui.mensagens import mostrar_erro
+from app.ui.teclado import caps_lock_ligado, inferir_do_evento
 from app.ui.widgets import rotulo
 
 
@@ -64,6 +65,15 @@ class LoginDialog(QDialog):
         self.campo_confirmacao.setPlaceholderText("Repita a senha")
         self.lembrar = QCheckBox("Continuar conectado neste computador")
 
+        # Fica sempre no layout, mudando só o texto: assim a janela não pula
+        # de altura quando o aviso aparece.
+        self.aviso_caps = QLabel()
+        self.aviso_caps.setFixedHeight(18)
+        self.aviso_caps.setStyleSheet(
+            f"color: {CORES['carimbo']}; font-size: 11px; font-weight: 500;"
+        )
+        self._caps = False
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 26, 28, 22)
         layout.setSpacing(8)
@@ -78,6 +88,7 @@ class LoginDialog(QDialog):
         layout.addWidget(self.campo_login)
         layout.addWidget(rotulo("Senha", "campo"))
         layout.addWidget(self.campo_senha)
+        layout.addWidget(self.aviso_caps)
         if self.primeiro_acesso:
             layout.addWidget(rotulo("Confirmação", "campo"))
             layout.addWidget(self.campo_confirmacao)
@@ -114,6 +125,16 @@ class LoginDialog(QDialog):
         rodape.addWidget(entrar)
         layout.addLayout(rodape)
 
+        # As teclas vão para o campo, não para o diálogo: é preciso escutá-las lá.
+        for campo in (self.campo_login, self.campo_senha, self.campo_confirmacao):
+            campo.installEventFilter(self)
+
+        self._relogio = QTimer(self)
+        self._relogio.setInterval(400)
+        self._relogio.timeout.connect(self._conferir_caps)
+        self._relogio.start()
+        self._conferir_caps()
+
         anterior = sessao_app.ler_token()
         if anterior and not self.primeiro_acesso:
             self.campo_login.setText(anterior[0])
@@ -121,6 +142,24 @@ class LoginDialog(QDialog):
         (self.campo_nome if self.primeiro_acesso else self.campo_login).setFocus()
         if self.campo_login.text():
             self.campo_senha.setFocus()
+
+    def eventFilter(self, objeto, evento) -> bool:  # noqa: N802 (API do Qt)
+        if evento.type() == QEvent.Type.KeyPress:
+            self._conferir_caps(
+                inferir_do_evento(
+                    evento.text(),
+                    bool(evento.modifiers() & Qt.KeyboardModifier.ShiftModifier),
+                )
+            )
+        return super().eventFilter(objeto, evento)
+
+    def _conferir_caps(self, deduzido: bool | None = None) -> None:
+        """Pergunta ao teclado; se não der, usa o que a digitação deixou ver."""
+        estado = caps_lock_ligado()
+        if estado is None:
+            estado = deduzido if deduzido is not None else self._caps
+        self._caps = estado
+        self.aviso_caps.setText("⇪  Caps Lock ligado" if estado else "")
 
     def _avisar(self, texto: str) -> None:
         self.aviso.setText(texto)
@@ -175,6 +214,12 @@ class LoginDialog(QDialog):
         self.accept()
 
     def keyPressEvent(self, evento) -> None:  # noqa: N802
+        self._conferir_caps(
+            inferir_do_evento(
+                evento.text(),
+                bool(evento.modifiers() & Qt.KeyboardModifier.ShiftModifier),
+            )
+        )
         if evento.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._entrar()
             return

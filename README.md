@@ -82,6 +82,7 @@ app/
     ├── evento_dialog.py   diálogo de inclusão e edição de um serviço
     ├── clientes_tab.py    lista, ficha do cliente, endereços e histórico
     ├── login.py           tela de entrada e 'continuar conectado'
+    ├── teclado.py         estado do Caps Lock
     ├── cadastros.py       tipos de serviço, solicitantes e usuários
     ├── registro_tab.py    consulta do registro de atividades
     ├── painel_tab.py      indicadores e gráficos do período
@@ -127,6 +128,11 @@ usuário do sistema operacional. O token vale 30 dias, e o banco guarda apenas o
 hash dele: o arquivo sozinho não revela senha nenhuma. Sair pelo botão no canto
 da barra de abas apaga o token dos dois lados e volta para a tela de entrada.
 Trocar a senha de alguém encerra todos os "continuar conectado" daquela pessoa.
+
+Com o **Caps Lock ligado**, um aviso aparece logo abaixo do campo de senha. O
+estado vem do próprio teclado (XKB, via libX11 — funciona no Wayland por conta
+do XWayland); onde isso não estiver disponível, o aviso é deduzido do que você
+digita: letra maiúscula sem Shift, ou minúscula com Shift.
 
 As senhas ficam como hash PBKDF2-SHA256 com 240 mil iterações e sal por usuário
 (`app/seguranca.py`) — nenhuma senha é gravada em texto.
