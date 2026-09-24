@@ -5,9 +5,11 @@ from __future__ import annotations
 from datetime import date
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
+    QTableWidgetItem,
     QHBoxLayout,
+    QHeaderView,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
@@ -23,7 +25,8 @@ from app.models import Cliente, Evento, TipoCliente, TipoEndereco
 from app.repository import clientes as repo_clientes
 from app.repository import eventos as repo_eventos
 from app.schemas import DadosCliente
-from app.ui.estilo import COR_STATUS, marcar
+from app.ui.datas import Agrupamento, agrupar
+from app.ui.estilo import COR_STATUS, CORES, FONTE_DADOS, marcar
 from app.ui.mensagens import confirmar, mostrar_erro
 from app.ui.widgets import (
     EnderecoForm,
@@ -53,6 +56,7 @@ class ClientesTab(QWidget):
         super().__init__(parent)
         self._cliente_id: int | None = None
         self._carregando = False
+        self._historico: list[Evento] = []
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         splitter.setHandleWidth(16)
@@ -188,9 +192,24 @@ class ClientesTab(QWidget):
             rotulo("Clique duas vezes para abrir o dia na agenda.", "fraco")
         )
 
+        self.campo_agrupamento = Segmentado(Agrupamento)
+        self.campo_agrupamento.definir_valor(Agrupamento.MES)
+        self.campo_agrupamento.mudou.connect(lambda _modo: self._desenhar_historico())
+        seletor = QHBoxLayout()
+        seletor.setSpacing(8)
+        seletor.addWidget(rotulo("Agrupar por", "campo"))
+        seletor.addWidget(self.campo_agrupamento)
+        seletor.addStretch(1)
+        layout.addLayout(seletor)
+
         self.tabela_historico = QTableWidget()
         configurar_tabela(self.tabela_historico, COLUNAS_HISTORICO, coluna_elastica=1)
         self.tabela_historico.doubleClicked.connect(self._ao_duplo_clique_historico)
+        # Coluna da data com largura fixa: a linha de cabeçalho do grupo ocupa
+        # as três colunas e não deve influenciar a largura de nenhuma delas.
+        cabecalho = self.tabela_historico.horizontalHeader()
+        cabecalho.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.tabela_historico.setColumnWidth(0, 108)
         layout.addWidget(self.tabela_historico)
         return painel
 
@@ -281,34 +300,60 @@ class ClientesTab(QWidget):
         self.titulo_ficha.setText(cliente.nome_exibicao)
 
     def _preencher_historico(self, historico: list[Evento]) -> None:
-        self.tabela_historico.setRowCount(len(historico))
-        for linha, evento in enumerate(historico):
-            preencher_linha(
-                self.tabela_historico,
-                linha,
-                (
-                    evento.data.strftime("%d/%m/%Y"),
-                    evento.tipo_servico.value,
-                    evento.status.value,
-                ),
-                dado=evento.data,
-            )
-            detalhe = "\n".join(
-                [
-                    f"Período: {evento.periodo.value}",
-                    f"Endereço: {_rotulo_endereco(evento)}",
-                    f"Solicitante: {evento.solicitante or '—'}",
-                ]
-            )
-            for coluna in range(self.tabela_historico.columnCount()):
-                item = self.tabela_historico.item(linha, coluna)
-                if item is not None:
-                    item.setToolTip(detalhe)
-            cor, _ = COR_STATUS[evento.status]
-            situacao = self.tabela_historico.item(linha, 2)
-            if situacao is not None:
-                situacao.setForeground(QColor(cor))
+        self._historico = historico
         self.titulo_historico.setText(f"Histórico de serviços ({len(historico)})")
+        self._desenhar_historico()
+
+    def _desenhar_historico(self) -> None:
+        """Redesenha a tabela agrupada pelo período escolhido no seletor."""
+        tabela = self.tabela_historico
+        grupos = agrupar(self._historico, self.campo_agrupamento.valor())
+
+        tabela.clearSpans()
+        tabela.setRowCount(sum(1 + len(eventos) for _, eventos in grupos))
+
+        linha = 0
+        for titulo, eventos in grupos:
+            self._linha_de_grupo(linha, f"{titulo}  ·  {len(eventos)}")
+            linha += 1
+            for evento in eventos:
+                preencher_linha(
+                    tabela,
+                    linha,
+                    (
+                        evento.data.strftime("%d/%m/%Y"),
+                        evento.tipo_servico.value,
+                        evento.status.value,
+                    ),
+                    dado=evento.data,
+                )
+                detalhe = "\n".join(
+                    [
+                        f"Período: {evento.periodo.value}",
+                        f"Endereço: {_rotulo_endereco(evento)}",
+                        f"Solicitante: {evento.solicitante or '—'}",
+                    ]
+                )
+                for coluna in range(tabela.columnCount()):
+                    item = tabela.item(linha, coluna)
+                    if item is not None:
+                        item.setToolTip(detalhe)
+                cor, _ = COR_STATUS[evento.status]
+                situacao = tabela.item(linha, 2)
+                if situacao is not None:
+                    situacao.setForeground(QColor(cor))
+                linha += 1
+
+    def _linha_de_grupo(self, linha: int, texto: str) -> None:
+        """Faixa que abre cada período, ocupando a largura toda da tabela."""
+        item = QTableWidgetItem(texto.upper())
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled)  # visível, mas não selecionável
+        item.setFont(QFont(FONTE_DADOS, 8, QFont.Weight.DemiBold))
+        item.setForeground(QColor(CORES["tinta_fraca"]))
+        item.setBackground(QColor(CORES["papel_suave"]))
+        self.tabela_historico.setItem(linha, 0, item)
+        self.tabela_historico.setSpan(linha, 0, 1, self.tabela_historico.columnCount())
+        self.tabela_historico.setRowHeight(linha, 26)
 
     # ----------------------------------------------------------------- ações
     def _novo(self) -> None:
@@ -321,9 +366,9 @@ class ClientesTab(QWidget):
         self.observacao.clear()
         self.form_residencial.limpar()
         self.form_comercial.limpar()
-        self.tabela_historico.setRowCount(0)
-        self.titulo_ficha.setText("Novo cliente")
+        self._preencher_historico([])
         self.titulo_historico.setText("Histórico de serviços")
+        self.titulo_ficha.setText("Novo cliente")
         self._habilitar_ficha(True)
         self.nome.setFocus()
 
@@ -403,9 +448,9 @@ class ClientesTab(QWidget):
         self.observacao.clear()
         self.form_residencial.limpar()
         self.form_comercial.limpar()
-        self.tabela_historico.setRowCount(0)
-        self.titulo_ficha.setText("Escolha um cliente na lista")
+        self._preencher_historico([])
         self.titulo_historico.setText("Histórico de serviços")
+        self.titulo_ficha.setText("Escolha um cliente na lista")
         self._habilitar_ficha(False)
 
     def _habilitar_ficha(self, ativo: bool) -> None:

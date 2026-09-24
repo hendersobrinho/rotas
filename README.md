@@ -74,6 +74,7 @@ app/
     ├── clientes_tab.py    lista, ficha do cliente, endereços e histórico
     ├── eventos_tab.py     calendário do mês e a folha do dia
     ├── calendario.py      a grade do mês
+    ├── datas.py           nomes de meses e dias, e o agrupamento por período
     ├── evento_dialog.py   diálogo de inclusão e edição de um serviço
     ├── widgets.py         etiquetas, botões segmentados, tabelas e endereço
     └── mensagens.py       caixas de erro e confirmação
@@ -97,6 +98,9 @@ A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
 - O **histórico** fica na terceira coluna, sempre visível: são os serviços do
   cliente, do mais recente para o mais antigo. Clicar duas vezes numa linha
   abre aquele dia na agenda.
+- O histórico pode ser agrupado por **semana**, **mês** ou **ano**. Cada
+  período vira uma faixa com o rótulo e a quantidade de serviços; nada é
+  escondido, só organizado. A semana começa no domingo, igual ao calendário.
 
 ### Agenda
 

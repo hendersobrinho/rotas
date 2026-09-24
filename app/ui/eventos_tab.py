@@ -23,7 +23,8 @@ from app.models import Cliente, Evento, Periodo, StatusEvento
 from app.repository import clientes as repo_clientes
 from app.repository import eventos as repo_eventos
 from app.schemas import FiltroEventos
-from app.ui.calendario import CalendarioMensal, data_por_extenso
+from app.ui.calendario import CalendarioMensal
+from app.ui.datas import data_por_extenso
 from app.ui.estilo import COR_SERVICO, COR_STATUS, CORES, ROTULO_PERIODO, marcar
 from app.ui.evento_dialog import EventoDialog
 from app.ui.mensagens import mostrar_erro

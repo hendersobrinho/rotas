@@ -18,18 +18,10 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import Evento, StatusEvento, TipoServico
+from app.ui.datas import DIAS_SEMANA, inicio_da_semana, titulo_mes
 from app.ui.estilo import COR_SERVICO, CORES, FONTE_DADOS, marcar
 from app.ui.widgets import rotulo
 
-MESES = (
-    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
-    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
-)
-DIAS_SEMANA = ("dom", "seg", "ter", "qua", "qui", "sex", "sáb")
-DIAS_POR_EXTENSO = (
-    "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
-    "sexta-feira", "sábado", "domingo",
-)
 LINHAS = 6
 MAX_ETIQUETAS = 3
 
@@ -37,22 +29,9 @@ MAX_ETIQUETAS = 3
 GLIFO_SERVICO = {TipoServico.COLETA: "●", TipoServico.RETIRADA: "▲"}
 
 
-def data_por_extenso(dia: date) -> str:
-    """Ex.: 'quarta-feira, 23 de setembro de 2026'."""
-    return (
-        f"{DIAS_POR_EXTENSO[dia.weekday()]}, {dia.day} de "
-        f"{MESES[dia.month - 1]} de {dia.year}"
-    )
-
-
-def titulo_mes(mes: date) -> str:
-    return f"{MESES[mes.month - 1].capitalize()} de {mes.year}"
-
-
 def primeiro_dia_da_grade(mes: date) -> date:
     """Domingo em que começa a grade do mês."""
-    primeiro = mes.replace(day=1)
-    return primeiro - timedelta(days=(primeiro.weekday() + 1) % 7)
+    return inicio_da_semana(mes.replace(day=1))
 
 
 class TextoElidido(QLabel):
