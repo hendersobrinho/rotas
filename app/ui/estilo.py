@@ -249,6 +249,22 @@ QPushButton[variante="fantasma"] {{
     padding: 6px 10px;
 }}
 QPushButton[variante="fantasma"]:hover {{ background: {cinza_claro}; color: {tinta}; }}
+/* Botão que abre uma escolha, com aparência de campo. */
+QPushButton[variante="campo"] {{
+    background: {papel};
+    border: 1px solid {pauta_forte};
+    border-radius: 8px;
+    padding: 7px 12px;
+    text-align: left;
+    font-weight: 500;
+    color: {tinta};
+}}
+QPushButton[variante="campo"]:hover {{ border-color: {azul}; }}
+QPushButton[variante="campo"]:disabled {{
+    background: {papel_suave};
+    color: {tinta_fraca};
+    border-color: {pauta};
+}}
 QPushButton[variante="segmento"] {{
     background: transparent;
     border: 1px solid transparent;

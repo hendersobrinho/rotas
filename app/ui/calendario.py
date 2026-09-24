@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import Evento, StatusEvento, TipoServico
-from app.ui.datas import DIAS_SEMANA, inicio_da_semana, titulo_mes
+from app.ui.datas import DIAS_SEMANA, primeiro_dia_da_grade, titulo_mes
 from app.ui.estilo import (
     CORES,
     FONTE_DADOS,
@@ -30,11 +30,6 @@ from app.ui.widgets import rotulo
 
 LINHAS = 6
 MAX_ETIQUETAS = 3
-
-
-def primeiro_dia_da_grade(mes: date) -> date:
-    """Domingo em que começa a grade do mês."""
-    return inicio_da_semana(mes.replace(day=1))
 
 
 class TextoElidido(QLabel):

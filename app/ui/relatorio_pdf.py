@@ -31,6 +31,7 @@ from app.ui.datas import (
 )
 from app.ui.estilo import CORES, ROTULO_PERIODO, cores_da_etiqueta, marcar
 from app.ui.mensagens import mostrar_erro
+from app.ui.seletor_data import SeletorDeData
 from app.ui.widgets import Segmentado, rotulo
 
 # Duas páginas possíveis: A4 para imprimir e uma estreita que enche a tela do
@@ -306,16 +307,20 @@ class RelatorioDialog(QDialog):
         self.caminho: Path | None = None
 
         self.setWindowTitle("Emitir PDF")
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(430)
         self.setStyleSheet(f"QDialog {{ background: {CORES['papel']}; }}")
 
         self.campo_abrangencia = Segmentado(Abrangencia)
         self.campo_abrangencia.definir_valor(Abrangencia.DIA)
-        self.campo_abrangencia.mudou.connect(lambda _v: self._atualizar_resumo())
+        self.campo_abrangencia.mudou.connect(self._trocar_abrangencia)
         self.campo_formato = Segmentado(Formato)
         self.campo_formato.definir_valor(Formato.A4)
 
-        self.resumo = rotulo("", "fraco")
+        self.calendario = SeletorDeData(self)
+        self.calendario.definir_data(self._dia)
+        self.calendario.escolhida.connect(lambda _d: self._atualizar_resumo())
+
+        self.resumo = rotulo("", "secao")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 22, 24, 20)
@@ -325,16 +330,27 @@ class RelatorioDialog(QDialog):
             rotulo("A lista dos serviços, com cliente, endereço e tipo.", "fraco")
         )
         layout.addSpacing(8)
-        layout.addWidget(rotulo("O que sai", "campo"))
-        layout.addWidget(self.campo_abrangencia)
-        layout.addSpacing(6)
-        layout.addWidget(rotulo("Formato da página", "campo"))
-        layout.addWidget(self.campo_formato)
+        linha_abrangencia = QHBoxLayout()
+        linha_abrangencia.addWidget(rotulo("O que sai", "campo"))
+        linha_abrangencia.addSpacing(8)
+        linha_abrangencia.addWidget(self.campo_abrangencia)
+        linha_abrangencia.addStretch(1)
+        layout.addLayout(linha_abrangencia)
+        layout.addSpacing(4)
+
+        layout.addWidget(self.calendario)
+        layout.addWidget(self.resumo)
+        layout.addSpacing(8)
+
+        linha_formato = QHBoxLayout()
+        linha_formato.addWidget(rotulo("Formato da página", "campo"))
+        linha_formato.addSpacing(8)
+        linha_formato.addWidget(self.campo_formato)
+        linha_formato.addStretch(1)
+        layout.addLayout(linha_formato)
         layout.addWidget(
             rotulo("A4 imprime; Celular é estreito e lê sem zoom.", "fraco")
         )
-        layout.addSpacing(6)
-        layout.addWidget(self.resumo)
         layout.addSpacing(10)
 
         salvar = QPushButton("Salvar PDF")
@@ -351,15 +367,20 @@ class RelatorioDialog(QDialog):
 
         self._atualizar_resumo()
 
+    def _trocar_abrangencia(self, valor: Abrangencia) -> None:
+        self.calendario.definir_por_semana(valor is Abrangencia.SEMANA)
+        self._atualizar_resumo()
+
     def _intervalo(self) -> tuple[date, date, str]:
+        escolhida = self.calendario.data()
         if self.campo_abrangencia.valor() is Abrangencia.SEMANA:
-            inicio = inicio_da_semana(self._dia)
+            inicio = inicio_da_semana(escolhida)
             fim = inicio + timedelta(days=6)
             return inicio, fim, rotulo_do_periodo(inicio, Agrupamento.SEMANA)
-        return self._dia, self._dia, data_por_extenso(self._dia).capitalize()
+        return escolhida, escolhida, data_por_extenso(escolhida).capitalize()
 
     def _atualizar_resumo(self) -> None:
-        inicio, fim, titulo = self._intervalo()
+        _inicio, _fim, titulo = self._intervalo()
         self.resumo.setText(titulo)
 
     def _sugestao(self, inicio: date, fim: date) -> str:

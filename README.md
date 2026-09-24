@@ -85,6 +85,8 @@ app/
     ├── teclado.py         estado do Caps Lock
     ├── cadastros.py       tipos de serviço, solicitantes e usuários
     ├── registro_tab.py    consulta do registro de atividades
+    ├── seletor_cliente.py janela de busca de cliente
+    ├── seletor_data.py    mini calendário de dia ou semana
     ├── painel_tab.py      indicadores e gráficos do período
     ├── graficos.py        barras desenhadas com QPainter
     ├── relatorio_pdf.py   emissão do PDF da agenda
@@ -169,8 +171,10 @@ quando cancelado. Clicar num dia entra nele: a folha do dia mostra os serviços
 separados em **manhã** e **tarde**, e o botão *Incluir serviço* já chega com a
 data preenchida. Clicar num serviço abre o mesmo diálogo para editar.
 
-- Sempre ligados a um cliente; o endereço é **opcional** e, quando informado,
-  precisa ser um dos endereços daquele cliente.
+- Sempre ligados a um cliente, escolhido numa **janela de busca** — digitar
+  parte do nome ou do apelido filtra na hora, sem diferença de acento ou de
+  maiúsculas ("joao" acha "João"). O endereço é **opcional** e, quando
+  informado, precisa ser um dos endereços daquele cliente.
 - Serviço **Coleta** ou **Retirada**, com data e período (**Manhã**/**Tarde**).
 - *Solicitante* é a pessoa do escritório que pediu o serviço.
 - Situação: **Pendente**, **Concluído** ou **Cancelado**, trocada no próprio
@@ -202,8 +206,10 @@ do que ele fez.
 
 ### PDF da agenda
 
-O botão *Emitir PDF* aparece no cabeçalho do mês e na folha do dia. Sai o dia ou
-a semana, em dois formatos:
+O botão *Emitir PDF* aparece no cabeçalho do mês e na folha do dia. A escolha do
+que sai é feita num mini calendário: no modo **Dia** o clique marca o dia; no
+modo **Semana**, a linha inteira acende e sai a semana toda (de domingo a
+sábado, igual ao calendário da agenda). Dois formatos:
 
 - **A4**, para imprimir ou mandar por e-mail;
 - **Celular**, uma página estreita (95 × 170 mm) que preenche a tela do telefone

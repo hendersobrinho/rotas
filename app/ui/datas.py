@@ -37,6 +37,11 @@ def inicio_da_semana(dia: date) -> date:
     return dia - timedelta(days=(dia.weekday() + 1) % 7)
 
 
+def primeiro_dia_da_grade(mes: date, linhas: int = 6) -> date:
+    """Domingo em que começa a grade de um mês (a grade tem `linhas` semanas)."""
+    return inicio_da_semana(mes.replace(day=1))
+
+
 class Agrupamento(enum.Enum):
     """Como o histórico do cliente é dividido na tela."""
 

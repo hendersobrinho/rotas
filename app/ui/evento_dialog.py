@@ -23,6 +23,7 @@ from app.repository import solicitantes as repo_solicitantes
 from app.repository import tipos_servico as repo_tipos
 from app.schemas import DadosEvento
 from app.ui.cadastros import SolicitanteDialog
+from app.ui.seletor_cliente import SeletorClienteDialog
 from app.ui.estilo import CORES, cores_da_etiqueta, glifo_da_etiqueta, marcar
 from app.ui.mensagens import confirmar, mostrar_erro
 from app.ui.widgets import Segmentado, rotulo, selecionar_dado
@@ -51,10 +52,18 @@ class EventoDialog(QDialog):
         self.setMinimumWidth(540)
         self.setStyleSheet(f"QDialog {{ background: {CORES['papel']}; }}")
 
-        self.campo_cliente = QComboBox()
-        for cliente in clientes:
-            self.campo_cliente.addItem(cliente.nome_exibicao, cliente.id)
-        self.campo_cliente.currentIndexChanged.connect(self._atualizar_enderecos)
+        self._cliente_id: int | None = None
+        self.botao_cliente = QPushButton()
+        marcar(self.botao_cliente, variante="campo")
+        self.botao_cliente.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.botao_cliente.clicked.connect(self._escolher_cliente)
+        self.botao_buscar = QPushButton("⌕")
+        self.botao_buscar.setFixedWidth(40)
+        self.botao_buscar.setToolTip("Procurar cliente")
+        self.botao_buscar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.botao_buscar.setStyleSheet("font-size: 16px;")
+        self.botao_buscar.clicked.connect(self._escolher_cliente)
+        self.detalhe_cliente = rotulo("", "fraco")
 
         self.campo_endereco = QComboBox()
         self.campo_endereco.setMinimumWidth(420)
@@ -80,7 +89,12 @@ class EventoDialog(QDialog):
         conteudo.addSpacing(10)
 
         conteudo.addWidget(rotulo("Cliente", "campo"))
-        conteudo.addWidget(self.campo_cliente)
+        linha_cliente = QHBoxLayout()
+        linha_cliente.setSpacing(6)
+        linha_cliente.addWidget(self.botao_cliente, 1)
+        linha_cliente.addWidget(self.botao_buscar)
+        conteudo.addLayout(linha_cliente)
+        conteudo.addWidget(self.detalhe_cliente)
         conteudo.addSpacing(8)
         conteudo.addWidget(rotulo("Endereço", "campo"))
         conteudo.addWidget(self.campo_endereco)
@@ -206,8 +220,7 @@ class EventoDialog(QDialog):
         self, evento: Evento | None, dia: date | None, cliente_id: int | None
     ) -> None:
         if evento is not None:
-            selecionar_dado(self.campo_cliente, evento.cliente_id)
-            self._atualizar_enderecos()
+            self._definir_cliente(evento.cliente_id)
             selecionar_dado(self.campo_endereco, evento.endereco_id)
             selecionar_dado(self.campo_servico, evento.tipo_servico_id)
             selecionar_dado(self.campo_solicitante, evento.solicitante_id)
@@ -215,20 +228,38 @@ class EventoDialog(QDialog):
             self.campo_status.definir_valor(evento.status)
             escolhido = evento.data
         else:
-            if cliente_id is not None:
-                selecionar_dado(self.campo_cliente, cliente_id)
-            self._atualizar_enderecos()
+            self._definir_cliente(cliente_id)
             self.campo_periodo.definir_valor(Periodo.MANHA)
             self.campo_status.definir_valor(StatusEvento.PENDENTE)
             escolhido = dia or date.today()
         self.campo_data.setDate(QDate(escolhido.year, escolhido.month, escolhido.day))
 
     def _cliente_atual(self) -> Cliente | None:
-        cliente_id = self.campo_cliente.currentData()
         for cliente in self._clientes:
-            if cliente.id == cliente_id:
+            if cliente.id == self._cliente_id:
                 return cliente
         return None
+
+    def _escolher_cliente(self) -> None:
+        """Abre a janela de busca; a lista suspensa não servia com muitos clientes."""
+        dialogo = SeletorClienteDialog(self, self._clientes, self._cliente_id)
+        if dialogo.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._definir_cliente(dialogo.cliente_id)
+
+    def _definir_cliente(self, cliente_id: int | None) -> None:
+        self._cliente_id = cliente_id
+        cliente = self._cliente_atual()
+        if cliente is None:
+            self.botao_cliente.setText("Escolher cliente...")
+            self.detalhe_cliente.setText("")
+        else:
+            self.botao_cliente.setText(cliente.nome_exibicao)
+            detalhes = [cliente.nome] if cliente.apelido != cliente.nome else []
+            if cliente.telefone:
+                detalhes.append(cliente.telefone)
+            self.detalhe_cliente.setText(" · ".join(detalhes))
+        self._atualizar_enderecos()
 
     def _atualizar_enderecos(self) -> None:
         anterior = self.campo_endereco.currentData()
@@ -243,7 +274,7 @@ class EventoDialog(QDialog):
         selecionar_dado(self.campo_endereco, anterior)
 
     def _dados(self) -> DadosEvento:
-        cliente_id = self.campo_cliente.currentData()
+        cliente_id = self._cliente_id
         if cliente_id is None:
             raise ValueError("Escolha o cliente do serviço.")
         tipo_id = self.campo_servico.currentData()
