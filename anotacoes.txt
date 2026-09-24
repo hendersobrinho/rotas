@@ -1,3 +1,0 @@
-colocar o relatório pdf para emitir considerando a cidade
-colocar para fgerar serviços automaticamente
-colocar pra configurar o banco de dados

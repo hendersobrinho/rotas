@@ -23,6 +23,7 @@ from app.ui.mensagens import mostrar_erro
 from app.ui.seletor_data import SeletorDeData
 from app.ui.widgets import (
     Segmentado,
+    selecionar_dado,
     configurar_tabela,
     dado_da_linha,
     preencher_linha,
@@ -62,6 +63,23 @@ class ReagendarDialog(QDialog):
             "Escolha um motivo ou escreva o seu"
         )
 
+        # O serviço novo precisa de endereço. Vem com o do original, e dá para
+        # trocar — inclusive quando o original ficou sem, porque o endereço
+        # saiu do cadastro.
+        self.campo_endereco = QComboBox()
+        enderecos = list(evento.cliente.enderecos)
+        if evento.endereco_id is None and enderecos:
+            self.campo_endereco.addItem("Escolha o endereço", None)
+        for endereco in enderecos:
+            self.campo_endereco.addItem(
+                f"{endereco.tipo.value} — {endereco.resumo()}", endereco.id
+            )
+        if not enderecos:
+            self.campo_endereco.addItem("Sem endereço cadastrado", None)
+            self.campo_endereco.setEnabled(False)
+        elif evento.endereco_id is not None:
+            selecionar_dado(self.campo_endereco, evento.endereco_id)
+
         self.remarcar = QCheckBox("Remarcar para outro dia")
         self.remarcar.setChecked(True)
         self.remarcar.toggled.connect(self._alternar_remarcacao)
@@ -95,6 +113,9 @@ class ReagendarDialog(QDialog):
         explicacao.setWordWrap(True)
         layout.addWidget(explicacao)
         layout.addSpacing(4)
+        layout.addWidget(rotulo("Endereço da remarcação", "campo"))
+        layout.addWidget(self.campo_endereco)
+        layout.addSpacing(4)
         layout.addWidget(self.calendario)
         linha_periodo = QHBoxLayout()
         linha_periodo.addWidget(rotulo("Período", "campo"))
@@ -121,6 +142,11 @@ class ReagendarDialog(QDialog):
     def _alternar_remarcacao(self, ligado: bool) -> None:
         self.calendario.setEnabled(ligado)
         self.campo_periodo.setEnabled(ligado)
+        self.campo_endereco.setEnabled(
+            ligado and self.campo_endereco.count() > 0
+            and self.campo_endereco.itemData(self.campo_endereco.count() - 1)
+            is not None
+        )
 
     def _salvar(self) -> None:
         motivo = self.campo_motivo.currentText()
@@ -133,6 +159,7 @@ class ReagendarDialog(QDialog):
                         self.calendario.data(),
                         self.campo_periodo.valor(),
                         motivo,
+                        endereco_id=self.campo_endereco.currentData(),
                     )
                     self.remarcado_para = novo.data
                 else:

@@ -144,9 +144,7 @@ print("ok serviço fixo sem endereço nasce parado")
 
 # e parado não abre nada
 with session_scope() as sessao:
-    antes = len(repo_eventos.listar_eventos(sessao))
     repo_recorrencias.gerar(sessao, a_partir_de=hoje)
-    assert len(repo_eventos.listar_eventos(sessao)) >= antes
     abertos_sem = [
         e for e in repo_eventos.listar_eventos(sessao)
         if e.recorrencia_id == fixo.recorrencia_id
@@ -165,6 +163,34 @@ with session_scope() as sessao:
     pendentes = repo_recorrencias.listar_sem_endereco(sessao)
     assert any(r.id == fixo.recorrencia_id for r in pendentes)
 print("ok regra ligada sem endereço fica de fora da geração")
+
+# e a tela dessa regra reativada precisa ter saída: ou escolher endereço, ou
+# desligar — nunca abrir travada num estado que não salva
+with session_scope() as sessao:
+    reativada = repo_recorrencias.obter(sessao, fixo.recorrencia_id)
+tela = RecorrenciaDialog(None, carregado_sem, reativada)
+assert not tela.campo_ativo.isChecked(), "não pode abrir marcada e travada"
+assert not tela.campo_ativo.isEnabled()
+tela._salvar()
+with session_scope() as sessao:
+    depois = repo_recorrencias.obter(sessao, fixo.recorrencia_id)
+    assert not depois.ativo, "dava para desligar"
+print("ok regra sem endereço abre desligada e pode ser salva assim")
+
+# com endereço disponível, a regra sem endereço não adota nenhum sozinha
+with session_scope() as sessao:
+    solta = repo_recorrencias.criar(sessao, DadosRecorrencia(
+        cliente_id=com_endereco.id, tipo_servico_id=tipo_id,
+        frequencia=FrequenciaRecorrencia.SEMANAL, dia_semana=0, ativo=False))
+    solta_id = solta.id
+    carregada = repo_recorrencias.obter(sessao, solta_id)
+    dono = repo_clientes.obter_cliente(sessao, com_endereco.id)
+tela_solta = RecorrenciaDialog(None, dono, carregada)
+assert tela_solta.campo_endereco.currentData() is None, (
+    "regra sem endereço não pode adotar o primeiro da lista"
+)
+assert tela_solta.campo_endereco.itemText(0) == "Escolha o endereço"
+print("ok regra sem endereço não adota endereço sozinha")
 
 fixo_ok = RecorrenciaDialog(None, carregado_com)
 assert fixo_ok.campo_endereco.isEnabled()

@@ -10,14 +10,14 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt
+from app import caminhos
+from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QWidget
 
-RECURSOS = Path(__file__).resolve().parents[1] / "recursos"
-LOGO = RECURSOS / "logo.svg"      # símbolo + palavra + seta
-SIMBOLO = RECURSOS / "marca.svg"  # só o símbolo
+LOGO = caminhos.recurso("logo.svg")      # símbolo + palavra + seta
+SIMBOLO = caminhos.recurso("marca.svg")  # só o símbolo
 
 # As cores saem do próprio logotipo.
 AZUL_MARCA = "#203461"
@@ -48,6 +48,28 @@ def imagem(altura: int, simbolo: bool = False) -> QImage:
     return quadro
 
 
+def imagem_quadrada(lado: int) -> QImage:
+    """O símbolo centralizado num quadrado — é o que o Windows pede no ícone."""
+    renderizador = QSvgRenderer(str(SIMBOLO))
+    tamanho = renderizador.defaultSize()
+    util = lado * 0.88  # uma folga para o símbolo não encostar na borda
+    largura = util
+    altura = util * tamanho.height() / tamanho.width()
+    if altura > util:
+        altura = util
+        largura = util * tamanho.width() / tamanho.height()
+
+    quadro = QImage(QSize(lado, lado), QImage.Format.Format_ARGB32_Premultiplied)
+    quadro.fill(Qt.GlobalColor.transparent)
+    pintor = QPainter(quadro)
+    pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+    renderizador.render(
+        pintor, QRectF((lado - largura) / 2, (lado - altura) / 2, largura, altura)
+    )
+    pintor.end()
+    return quadro
+
+
 @lru_cache(maxsize=16)
 def pixmap(altura: int, simbolo: bool = False) -> QPixmap:
     return QPixmap.fromImage(imagem(altura, simbolo))
@@ -58,7 +80,7 @@ def icone() -> QIcon:
     """Ícone da janela, nos tamanhos que os ambientes costumam pedir."""
     icone_marca = QIcon()
     for lado in (16, 24, 32, 48, 64, 128, 256):
-        icone_marca.addPixmap(QPixmap.fromImage(imagem(lado, simbolo=True)))
+        icone_marca.addPixmap(QPixmap.fromImage(imagem_quadrada(lado)))
     return icone_marca
 
 

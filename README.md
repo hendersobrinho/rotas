@@ -61,8 +61,11 @@ Na primeira execução as tabelas são criadas automaticamente
 
 ```
 main.py                    ponto de entrada: carrega .env, cria tabelas, abre a janela
+rotas.spec                 receita do PyInstaller
+instalador/rotas.iss       receita do instalador do Windows (Inno Setup)
 app/
-├── recursos/              logotipo (logo.svg) e só o símbolo (marca.svg)
+├── recursos/              logotipo, ícone do Windows e as fontes embarcadas
+├── caminhos.py            onde ficam configuração, dados e recursos
 ├── db.py                  URL de conexão, engine, session_scope(), init_db()
 ├── models.py              as tabelas e os enums do domínio
 ├── schemas.py             dataclasses que a UI envia para o repository
@@ -143,8 +146,9 @@ A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
 Na primeira execução não existe usuário nenhum, e a tela de entrada pede para
 criar o primeiro — é ele que depois cadastra os outros, na aba Cadastros.
 
-A opção **Continuar conectado neste computador** guarda um token em
-`~/.local/share/rotas/sessao.json`, com permissão de leitura só para o seu
+A opção **Continuar conectado neste computador** guarda um token na pasta de
+dados do usuário — `~/.local/share/rotas/` no Linux,
+`%LOCALAPPDATA%\Rotas` no Windows —, com permissão de leitura só para o seu
 usuário do sistema operacional. O token vale 30 dias, e o banco guarda apenas o
 hash dele: o arquivo sozinho não revela senha nenhuma. Sair pelo botão no canto
 da barra de abas apaga o token dos dois lados e volta para a tela de entrada.
@@ -320,9 +324,10 @@ instalada, o Qt cai para a fonte padrão do sistema sem quebrar nada.
 
 O botão *Conexão...* na tela de entrada abre a configuração: servidor, porta,
 banco, usuário e senha. O botão *Testar conexão* responde com a versão do
-PostgreSQL, e só depois de testar é que o *Salvar* grava — no próprio `.env`,
+PostgreSQL, e só depois de testar é que o *Salvar* grava — num `.env`,
 preservando o que não é conexão e deixando o arquivo legível só para você
-(permissão 600).
+(permissão 600). Rodando a partir do código, é o `.env` do projeto; instalado,
+é o da pasta do usuário (`%APPDATA%\Rotas` ou `~/.config/rotas`).
 
 Se o sistema não conseguir falar com o banco ao abrir, essa mesma tela aparece
 com o erro em cima, em vez de o programa simplesmente fechar.
@@ -355,6 +360,40 @@ Para os serviços automáticos:
 
 As tabelas de usuários, sessões e registro de atividades são criadas sozinhas
 por `create_all` na primeira execução — não precisam de script.
+
+## Instalador para Windows
+
+O sistema empacota com PyInstaller e vira instalador com o Inno Setup. **A
+montagem precisa acontecer no próprio Windows** — não dá para gerar um `.exe`
+a partir do Linux.
+
+No Windows, com Python 3.11+ instalado:
+
+```bat
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt -r requirements-build.txt
+.venv\Scripts\pyinstaller rotas.spec
+```
+
+Sai `dist\Rotas\Rotas.exe`, já com o logotipo como ícone, as fontes embutidas
+(Inter e JetBrains Mono não vêm no Windows) e o driver do PostgreSQL. Para
+virar instalador, abra `instalador\rotas.iss` no
+[Inno Setup](https://jrsoftware.org/isdl.php) e mande compilar: sai
+`instalador\saida\rotas-instalador.exe`, que instala para o usuário atual
+(sem pedir administrador) e cria os atalhos.
+
+### Banco em outro lugar
+
+O executável é só leitura, então **nada de conexão fica dentro dele**. Na
+primeira execução, sem conseguir falar com o banco, o programa abre a tela de
+Conexão: informe servidor, porta, banco, usuário e senha, clique em *Testar
+conexão* e salve. A configuração vai para a pasta do usuário do Windows
+(`%APPDATA%\Rotas\.env`), e o "continuar conectado" para
+`%LOCALAPPDATA%\Rotas`. Desinstalar não apaga esses arquivos — reinstalar não
+faz perder o apontamento.
+
+No servidor do banco, lembre de liberar o acesso de fora: `listen_addresses`
+no `postgresql.conf` e uma linha para a faixa da rede no `pg_hba.conf`.
 
 ## Verificações
 

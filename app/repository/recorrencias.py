@@ -202,10 +202,13 @@ def gerar(
     for regra in regras:
         # A geração não passa por criar_evento, então a régua do endereço
         # precisa valer aqui também: regra sem endereço fica parada.
-        if regra.endereco_id is None:
-            ignoradas.append(regra)
-            continue
         datas = ocorrencias(regra, inicio, fim)
+        if regra.endereco_id is None:
+            # Só vira aviso a regra que teria aberto algo na janela; do
+            # contrário o registro ganharia uma linha igual a cada login.
+            if datas:
+                ignoradas.append(regra)
+            continue
         if not datas:
             continue
         ja_existem = set(

@@ -149,6 +149,7 @@ class RecorrenciaDialog(QDialog):
 
         self._carregar_listas(regra)
         self._preencher(regra)
+        self._ajustar_sem_endereco()
 
     # ---------------------------------------------------------------- telas
     def _pagina_semanal(self) -> QWidget:
@@ -212,12 +213,11 @@ class RecorrenciaDialog(QDialog):
         if not self._cliente.enderecos:
             self.campo_endereco.addItem("Sem endereço cadastrado", None)
             self.campo_endereco.setEnabled(False)
-            self.campo_ativo.setChecked(False)
-            self.campo_ativo.setEnabled(False)
-            self.campo_ativo.setText(
-                "Sem endereço, a regra fica parada"
-            )
         else:
+            if regra is not None and regra.endereco_id is None:
+                # Regra gravada sem endereço: nada é escolhido no lugar, para
+                # os serviços futuros não irem parar em outro destino.
+                self.campo_endereco.addItem("Escolha o endereço", None)
             for endereco in self._cliente.enderecos:
                 self.campo_endereco.addItem(
                     f"{endereco.tipo.value} — {endereco.resumo()}", endereco.id
@@ -248,6 +248,21 @@ class RecorrenciaDialog(QDialog):
         self.campo_util.setChecked(regra.apenas_util)
         self.campo_ativo.setChecked(regra.ativo)
         self._trocar_frequencia(regra.frequencia)
+
+    def _ajustar_sem_endereco(self) -> None:
+        """Sem endereço no cadastro, a regra não tem como ficar ligada.
+
+        Roda depois de preencher: marcar "ativo" funciona mesmo em caixa
+        desabilitada, e a regra abriria travada num estado impossível de
+        salvar.
+        """
+        if self._cliente.enderecos:
+            self.campo_ativo.setEnabled(True)
+            self.campo_ativo.setText("Abrir os serviços automaticamente")
+            return
+        self.campo_ativo.setChecked(False)
+        self.campo_ativo.setEnabled(False)
+        self.campo_ativo.setText("Sem endereço cadastrado, a regra fica parada")
 
     def _trocar_frequencia(self, frequencia: FrequenciaRecorrencia) -> None:
         ordem = list(FrequenciaRecorrencia)

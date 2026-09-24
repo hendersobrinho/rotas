@@ -365,8 +365,29 @@ QStatusBar::item {{ border: none; }}
 """
 
 
+def carregar_fontes() -> list[str]:
+    """Registra as fontes embarcadas — no Windows elas não existem instaladas.
+
+    Devolve as famílias que entraram, para o caso de alguém querer conferir.
+    """
+    from PySide6.QtGui import QFontDatabase
+
+    from app import caminhos
+
+    familias: list[str] = []
+    pasta = caminhos.recurso("fontes")
+    if not pasta.is_dir():
+        return familias
+    for arquivo in sorted(pasta.glob("*.ttf")):
+        indice = QFontDatabase.addApplicationFont(str(arquivo))
+        if indice >= 0:
+            familias.extend(QFontDatabase.applicationFontFamilies(indice))
+    return sorted(set(familias))
+
+
 def aplicar_tema(app: QApplication) -> None:
     """Deixa o app sempre claro, independente do tema do sistema."""
+    carregar_fontes()
     app.setStyle("Fusion")
     app.setPalette(_palette_clara())
     app.setStyleSheet(

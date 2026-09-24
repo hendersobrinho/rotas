@@ -17,12 +17,10 @@ from app.ui.main_window import MainWindow
 
 
 def _carregar_env() -> None:
-    """Carrega um arquivo .env, se python-dotenv estiver instalado."""
-    try:
-        from dotenv import load_dotenv
-    except ImportError:
-        return
-    load_dotenv()
+    """Lê a configuração de conexão de onde ela estiver guardada."""
+    from app import configuracao
+
+    configuracao.carregar_env()
 
 
 def _preparar_banco() -> bool:

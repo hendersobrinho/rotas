@@ -8,7 +8,6 @@ permissão de leitura só para ele.
 from __future__ import annotations
 
 import json
-import os
 import socket
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,10 +48,10 @@ def nome_da_maquina() -> str:
 
 
 def caminho_do_arquivo() -> Path:
-    """~/.local/share/rotas/sessao.json (ou o equivalente em XDG_DATA_HOME)."""
-    base = os.environ.get("ROTAS_DIR_DADOS") or os.environ.get("XDG_DATA_HOME")
-    raiz = Path(base) if base else Path.home() / ".local" / "share"
-    return raiz / "rotas" / "sessao.json"
+    """O 'continuar conectado', na pasta de dados do usuário do sistema."""
+    from app import caminhos
+
+    return caminhos.pasta_dados() / "sessao.json"
 
 
 def salvar_token(login: str, token: str) -> None:

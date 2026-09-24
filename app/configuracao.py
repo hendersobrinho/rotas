@@ -5,7 +5,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-ARQUIVO = Path(__file__).resolve().parents[1] / ".env"
+from app import caminhos
+
+ARQUIVO = caminhos.pasta_config() / ".env"
 
 CAMPOS = {
     "host": ("ROTAS_DB_HOST", "localhost"),
@@ -77,7 +79,7 @@ def salvar(dados: dict[str, str]) -> Path:
         saida.append("# Conexão com o PostgreSQL")
         saida.extend(f"{chave}={valores[chave]}" for chave in faltando)
 
-    ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
+    caminhos.garantir(ARQUIVO.parent)
     ARQUIVO.write_text("\n".join(saida).rstrip() + "\n", encoding="utf-8")
     try:
         ARQUIVO.chmod(0o600)

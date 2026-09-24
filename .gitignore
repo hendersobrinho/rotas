@@ -11,3 +11,7 @@ venv/
 *.log
 testes/.dados/
 testes/.saida/
+build/
+dist/
+*.spec.bak
+instalador/saida/

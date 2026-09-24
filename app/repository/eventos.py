@@ -156,6 +156,7 @@ def reagendar(
     nova_data: date,
     novo_periodo: Periodo | None = None,
     motivo: str | None = None,
+    endereco_id: int | None = None,
 ) -> Evento:
     """Fecha o serviço como não realizado e abre outro na data nova.
 
@@ -174,17 +175,16 @@ def reagendar(
             f"Este serviço já foi remarcado para "
             f"{original.remarcacao.data.strftime('%d/%m/%Y')}."
         )
-    # A remarcação copia o endereço do original: se ele estiver vazio e o
-    # cliente tiver endereço, não dá para abrir o serviço novo sem destino.
-    validar_endereco(
-        original.cliente, original.endereco_id, tolerar_nulo=True
-    )
+    # A remarcação herda o endereço do original, a não ser que a tela informe
+    # outro — é o que salva o caso do endereço que saiu do cadastro.
+    destino = endereco_id if endereco_id is not None else original.endereco_id
+    validar_endereco(original.cliente, destino, tolerar_nulo=True)
 
     nao_realizado(sessao, evento_id, motivo)
 
     novo = Evento(
         cliente_id=original.cliente_id,
-        endereco_id=original.endereco_id,
+        endereco_id=destino,
         tipo_servico_id=original.tipo_servico_id,
         data=nova_data,
         periodo=novo_periodo or original.periodo,

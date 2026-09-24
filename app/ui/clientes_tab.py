@@ -47,6 +47,13 @@ COLUNAS_HISTORICO = ("Data", "Serviço", "Situação")
 COLUNAS_FIXOS = ("Quando", "Serviço", "Período", "Situação")
 
 
+def _situacao_do_fixo(regra) -> str:
+    """Regra ligada mas sem endereço não abre nada — a lista precisa dizer."""
+    if not regra.ativo:
+        return "Parado"
+    return "Ativo" if regra.endereco_id is not None else "Sem endereço"
+
+
 def _rotulo_endereco(evento: Evento) -> str:
     return "—" if evento.endereco is None else evento.endereco.tipo.value
 
@@ -267,13 +274,19 @@ class ClientesTab(QWidget):
                     repo_recorrencias.descrever(regra),
                     regra.tipo_servico.nome,
                     regra.periodo.value,
-                    "Ativo" if regra.ativo else "Parado",
+                    _situacao_do_fixo(regra),
                 ),
                 dado=regra.id,
             )
             item = self.tabela_fixos.item(linha, 0)
             if item is not None:
                 item.setToolTip(f"{gerados.get(regra.id, 0)} serviço(s) já abertos")
+            situacao = self.tabela_fixos.item(linha, 3)
+            if situacao is not None and regra.ativo and regra.endereco_id is None:
+                situacao.setForeground(QColor(CORES["vermelho"]))
+                situacao.setToolTip(
+                    "Sem endereço, a geração automática pula esta regra."
+                )
             if not regra.ativo:
                 for coluna in range(self.tabela_fixos.columnCount()):
                     celula = self.tabela_fixos.item(linha, coluna)
@@ -353,13 +366,31 @@ class ClientesTab(QWidget):
         self._preencher_fixos()
         self._abrir(self._cliente_id)
         self.dados_alterados.emit()
-        QMessageBox.information(
-            self,
-            "Serviços automáticos",
+        sem_endereco = [
+            regra
+            for regra in self._regras_do_cliente()
+            if regra.ativo and regra.endereco_id is None
+        ]
+        recado = (
             f"{len(criados)} serviço(s) aberto(s) na agenda."
             if criados
-            else "Não havia nada novo para abrir.",
+            else "Não havia nada novo para abrir."
         )
+        if sem_endereco:
+            recado += (
+                f"\n\n{len(sem_endereco)} regra(s) estão sem endereço e não"
+                " abrem nada. Edite e escolha o endereço, ou desligue."
+            )
+        QMessageBox.information(self, "Serviços automáticos", recado)
+
+    def _regras_do_cliente(self) -> list:
+        if self._cliente_id is None:
+            return []
+        try:
+            with session_scope() as sessao:
+                return repo_recorrencias.listar(sessao, self._cliente_id)
+        except Exception:
+            return []
 
     # ------------------------------------------------------------- histórico
     def _montar_historico(self) -> QWidget:
