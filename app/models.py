@@ -261,7 +261,7 @@ class Cliente(Base):
         back_populates="cliente",
         cascade="all, delete-orphan",
         lazy="selectin",
-        order_by="Endereco.tipo",
+        order_by="Endereco.id",
     )
     eventos: Mapped[list["Evento"]] = relationship(
         back_populates="cliente",
@@ -278,6 +278,7 @@ class Cliente(Base):
         return self.apelido or self.nome
 
     def endereco_por_tipo(self, tipo: TipoEndereco) -> "Endereco | None":
+        """O primeiro endereço de um tipo — um cliente pode ter vários."""
         for endereco in self.enderecos:
             if endereco.tipo is tipo:
                 return endereco
@@ -288,11 +289,9 @@ class Cliente(Base):
 
 
 class Endereco(Base):
+    """Um endereço do cliente. Pode ter quantos precisar, de cada tipo."""
+
     __tablename__ = "enderecos"
-    # Garante no máximo um endereço residencial e um comercial por cliente.
-    __table_args__ = (
-        UniqueConstraint("cliente_id", "tipo", name="uq_endereco_cliente_tipo"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     cliente_id: Mapped[int] = mapped_column(
@@ -301,6 +300,8 @@ class Endereco(Base):
     tipo: Mapped[TipoEndereco] = mapped_column(
         SAEnum(TipoEndereco, name="tipo_endereco"), nullable=False
     )
+    # Como a casa chama este endereço: "Matriz", "Loja do centro", "Depósito".
+    rotulo: Mapped[str | None] = mapped_column(String(60))
     logradouro: Mapped[str | None] = mapped_column(String(200))
     numero: Mapped[str | None] = mapped_column(String(20))
     complemento: Mapped[str | None] = mapped_column(String(100))
@@ -311,6 +312,11 @@ class Endereco(Base):
 
     cliente: Mapped[Cliente] = relationship(back_populates="enderecos")
     eventos: Mapped[list["Evento"]] = relationship(back_populates="endereco")
+
+    @property
+    def etiqueta(self) -> str:
+        """Como o endereço aparece nas listas: o rótulo, ou o tipo."""
+        return (self.rotulo or "").strip() or self.tipo.value
 
     def resumo(self) -> str:
         """Uma linha com o endereço, para listas e combos."""
@@ -328,6 +334,7 @@ class Endereco(Base):
 
     def esta_vazio(self) -> bool:
         campos = (
+            self.rotulo,
             self.logradouro,
             self.numero,
             self.complemento,

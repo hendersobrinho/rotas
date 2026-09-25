@@ -81,7 +81,9 @@ def clientes(janela: MainWindow) -> None:
     aba.tabela.selectRow(0)
     app.processEvents()
     assert aba._cliente_id is not None and not aba._editando
-    assert aba.nome.isReadOnly() and aba.form_comercial.logradouro.isReadOnly()
+    formularios = aba._formularios_endereco()
+    assert aba.nome.isReadOnly()
+    assert all(f.logradouro.isReadOnly() for f in formularios)
     assert aba.btn_editar.isVisibleTo(janela) and not aba.btn_salvar.isVisibleTo(janela)
 
     aba.tabela.selectRow(1)
@@ -90,6 +92,10 @@ def clientes(janela: MainWindow) -> None:
 
     aba._editar()
     assert aba._editando and not aba.nome.isReadOnly()
+    assert all(
+        not f.logradouro.isReadOnly() for f in aba._formularios_endereco()
+    )
+
     assert not aba.tabela.isEnabled(), "lista travada durante a edição"
     antes = aba.telefone.text()
     aba.telefone.setText("(31) 4002-8922")

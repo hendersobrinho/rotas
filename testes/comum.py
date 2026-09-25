@@ -94,11 +94,25 @@ def semear(com_eventos: bool = True) -> dict:
                 tipo=TipoCliente.PJ, nome="Panificadora Estrela do Oriente LTDA",
                 apelido="Padaria da Ana", telefone="(31) 3222-1010",
                 observacao="Falar com a Ana; o gerente não assina nada.",
-                enderecos=[DadosEndereco(
-                    TipoEndereco.COMERCIAL, logradouro="Av. Brasil", numero="1200",
-                    complemento="Loja 3", bairro="Savassi", cidade="Belo Horizonte",
-                    cep="30140-002",
-                    observacao="Entrada pela lateral depois das 18h.")]))
+                enderecos=[
+                    DadosEndereco(
+                        TipoEndereco.COMERCIAL, rotulo="Matriz",
+                        logradouro="Av. Brasil", numero="1200",
+                        complemento="Loja 3", bairro="Savassi",
+                        cidade="Belo Horizonte", cep="30140-002",
+                        observacao="Entrada pela lateral depois das 18h."),
+                    # Segundo endereço do mesmo tipo: o que a trava antiga
+                    # impedia.
+                    DadosEndereco(
+                        TipoEndereco.COMERCIAL, rotulo="Filial Barreiro",
+                        logradouro="Av. Olinto Meireles", numero="90",
+                        bairro="Barreiro", cidade="Belo Horizonte",
+                        cep="30640-010"),
+                    DadosEndereco(
+                        TipoEndereco.RESIDENCIAL, rotulo="Casa da Ana",
+                        logradouro="Rua Ouro Preto", numero="501",
+                        bairro="Santo Agostinho", cidade="Belo Horizonte"),
+                ]))
             # Fica sem endereço de propósito: é com ele que se verifica a
             # regra de que serviço sem endereço não entra.
             rc.criar_cliente(sessao, DadosCliente(

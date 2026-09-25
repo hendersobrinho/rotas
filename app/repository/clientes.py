@@ -10,6 +10,8 @@ from app.repository import logs as repo_logs
 from app.schemas import DadosCliente, DadosEndereco
 
 _CAMPOS_ENDERECO = (
+    "tipo",
+    "rotulo",
     "logradouro",
     "numero",
     "complemento",
@@ -103,31 +105,50 @@ def _validar(dados: DadosCliente) -> None:
     if not dados.nome:
         raise ValueError("O nome (ou razão social) é obrigatório.")
 
-    tipos = [endereco.tipo for endereco in dados.enderecos]
-    if len(tipos) != len(set(tipos)):
-        raise ValueError("Cada cliente aceita no máximo um endereço de cada tipo.")
+    # Vários endereços do mesmo tipo são permitidos, mas com rótulos
+    # diferentes — senão ninguém distingue um do outro na hora de marcar.
+    rotulos: dict[TipoEndereco, set[str]] = {}
+    for endereco in dados.enderecos:
+        if endereco.esta_vazio():
+            continue
+        limpo = (endereco.rotulo or "").strip().casefold()
+        usados = rotulos.setdefault(endereco.tipo, set())
+        if limpo in usados:
+            nome = (endereco.rotulo or "").strip() or endereco.tipo.value
+            raise ValueError(
+                f"Há dois endereços chamados “{nome}”. "
+                "Dê um nome diferente para cada um."
+            )
+        usados.add(limpo)
 
 
 def _aplicar_enderecos(cliente: Cliente, enderecos: list[DadosEndereco]) -> None:
-    """Cria, atualiza ou remove os endereços informados.
+    """Sincroniza a lista de endereços com o que a tela mandou.
 
-    Um endereço com todos os campos em branco significa "não tenho este
-    endereço" e, se já existir no banco, é removido.
+    A tela manda a lista inteira: quem tem `id` já existe, quem não tem é
+    novo, e quem ficou de fora (ou veio em branco) foi removido na tela e sai
+    do banco — o `delete-orphan` apaga a linha.
     """
-    for dados in enderecos:
-        atual = cliente.endereco_por_tipo(dados.tipo)
+    existentes = {endereco.id: endereco for endereco in cliente.enderecos}
+    mantidos: set[int] = set()
 
+    for dados in enderecos:
         if dados.esta_vazio():
-            if atual is not None:
-                cliente.enderecos.remove(atual)  # delete-orphan apaga a linha
             continue
 
+        atual = existentes.get(dados.id) if dados.id is not None else None
         if atual is None:
-            atual = Endereco(tipo=dados.tipo)
+            atual = Endereco()
             cliente.enderecos.append(atual)
+        else:
+            mantidos.add(atual.id)
 
         for campo in _CAMPOS_ENDERECO:
             setattr(atual, campo, getattr(dados, campo))
+
+    for identificador, endereco in existentes.items():
+        if identificador not in mantidos:
+            cliente.enderecos.remove(endereco)
 
 
 def endereco_do_cliente(

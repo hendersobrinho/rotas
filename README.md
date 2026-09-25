@@ -106,12 +106,15 @@ testes/
 ├── comum.py               banco descartável e dados de exemplo
 ├── teste_interface.py     entrada, conexão, clientes, agenda, cadastros e painel
 ├── teste_recorrencia.py   regras de repetição e abertura automática
+├── teste_enderecos.py     vários endereços por cliente
+├── teste_obrigatorios.py  cliente e endereço obrigatórios
 ├── teste_pdf.py           logotipo, cores, folha deitada e versão celular
 └── rodar.sh               roda tudo num banco de teste
 scripts/
 ├── migrar_tipos_e_solicitantes.py   migração para o formato com cadastros
 ├── migrar_nao_realizado.py          migração do estado "não realizado"
 ├── migrar_servicos_fixos.py         migração dos serviços automáticos
+├── migrar_varios_enderecos.py       libera vários endereços por cliente
 └── diagnostico_capslock.py          o que cada leitura do Caps Lock responde
 ```
 
@@ -124,10 +127,14 @@ A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
 
 - Tipo **PF** ou **PJ**; o campo *Nome* guarda o nome completo ou a razão social.
 - O *apelido / nome social* é o que aparece nas listas e nos combos.
-- Cada cliente tem no máximo **um endereço residencial e um comercial** —
-  garantido no banco pela constraint `uq_endereco_cliente_tipo`.
-- Para dizer que o cliente **não tem** determinado endereço, basta deixar todos
-  os campos daquele bloco em branco e salvar: o registro é removido.
+- Cada cliente tem **quantos endereços precisar**. O botão *Adicionar
+  endereço*, no alto do cartão, acrescenta um bloco; o *Remover* de cada um
+  tira. Cada endereço tem um tipo (residencial ou comercial) e um **nome** —
+  *Matriz*, *Filial Barreiro*, *Depósito* —, que é como ele aparece na hora de
+  marcar um serviço e nos relatórios. Dois endereços do mesmo tipo com o mesmo
+  nome não passam, senão ninguém os distingue na lista.
+- Um bloco deixado inteiramente em branco é ignorado, e um endereço removido da
+  tela sai do banco quando você salva.
 - A busca filtra por nome **ou** apelido, sem diferenciar maiúsculas e acentos
   de caixa (`ILIKE`).
 - A ficha abre **só para leitura**: dá para passear pela lista vendo os dados
@@ -356,6 +363,12 @@ Para os serviços automáticos:
 
 ```bash
 .venv/bin/python scripts/migrar_servicos_fixos.py
+```
+
+Para liberar vários endereços por cliente:
+
+```bash
+.venv/bin/python scripts/migrar_varios_enderecos.py
 ```
 
 As tabelas de usuários, sessões e registro de atividades são criadas sozinhas

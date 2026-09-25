@@ -220,7 +220,7 @@ class RecorrenciaDialog(QDialog):
                 self.campo_endereco.addItem("Escolha o endereço", None)
             for endereco in self._cliente.enderecos:
                 self.campo_endereco.addItem(
-                    f"{endereco.tipo.value} — {endereco.resumo()}", endereco.id
+                    f"{endereco.etiqueta} — {endereco.resumo()}", endereco.id
                 )
 
         self.campo_solicitante.clear()

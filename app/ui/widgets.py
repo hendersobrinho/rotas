@@ -185,12 +185,22 @@ def dado_da_linha(tabela: QTableWidget, linha: int) -> Any:
 
 
 class EnderecoForm(QFrame):
-    """Bloco de campos de um endereço (residencial ou comercial)."""
+    """Um endereço do cliente, dentro da lista de endereços da ficha."""
 
-    def __init__(self, tipo: TipoEndereco, parent: QWidget | None = None) -> None:
+    remocao_pedida = Signal(object)
+
+    def __init__(
+        self, endereco: Endereco | None = None, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         marcar(self, cartao="plano")
-        self.tipo = tipo
+        self.endereco_id: int | None = endereco.id if endereco else None
+
+        self.campo_tipo = combo_enum(TipoEndereco)
+        self.campo_tipo.setMaximumWidth(150)
+        self.rotulo_endereco = QLineEdit()
+        self.rotulo_endereco.setPlaceholderText("Matriz, Loja 2, Depósito...")
+        self.rotulo_endereco.setMaximumWidth(260)
 
         self.logradouro = QLineEdit()
         self.numero = QLineEdit()
@@ -207,16 +217,20 @@ class EnderecoForm(QFrame):
         self.observacao = QPlainTextEdit()
         self.observacao.setMaximumHeight(56)
 
+        self.btn_remover = QPushButton("Remover")
+        marcar(self.btn_remover, variante="perigo")
+        self.btn_remover.clicked.connect(lambda: self.remocao_pedida.emit(self))
+
         coluna = QVBoxLayout(self)
-        coluna.setContentsMargins(16, 14, 16, 14)
+        coluna.setContentsMargins(16, 12, 16, 14)
         coluna.setSpacing(10)
 
         topo = QHBoxLayout()
-        topo.addWidget(rotulo(f"Endereço {tipo.value.lower()}", "secao"))
+        topo.setSpacing(8)
+        topo.addWidget(self.campo_tipo)
+        topo.addWidget(self.rotulo_endereco, 1)
         topo.addStretch(1)
-        topo.addWidget(
-            rotulo("em branco = o cliente não tem este endereço", "fraco")
-        )
+        topo.addWidget(self.btn_remover)
         coluna.addLayout(topo)
 
         grade = QGridLayout()
@@ -240,8 +254,12 @@ class EnderecoForm(QFrame):
         grade.setColumnStretch(3, 1)
         coluna.addLayout(grade)
 
+        if endereco is not None:
+            self.preencher(endereco)
+
     def limpar(self) -> None:
         for campo in (
+            self.rotulo_endereco,
             self.logradouro,
             self.numero,
             self.complemento,
@@ -256,6 +274,9 @@ class EnderecoForm(QFrame):
         self.limpar()
         if endereco is None:
             return
+        self.endereco_id = endereco.id
+        selecionar_dado(self.campo_tipo, endereco.tipo)
+        self.rotulo_endereco.setText(endereco.rotulo or "")
         self.logradouro.setText(endereco.logradouro or "")
         self.numero.setText(endereco.numero or "")
         self.complemento.setText(endereco.complemento or "")
@@ -266,6 +287,7 @@ class EnderecoForm(QFrame):
 
     def somente_leitura(self, valor: bool) -> None:
         for campo in (
+            self.rotulo_endereco,
             self.logradouro,
             self.numero,
             self.complemento,
@@ -274,11 +296,17 @@ class EnderecoForm(QFrame):
             self.cep,
         ):
             campo.setReadOnly(valor)
+            marcar(campo, leitura=valor)
         self.observacao.setReadOnly(valor)
+        marcar(self.observacao, leitura=valor)
+        self.campo_tipo.setEnabled(not valor)
+        self.btn_remover.setVisible(not valor)
 
     def dados(self) -> DadosEndereco:
         return DadosEndereco(
-            tipo=self.tipo,
+            tipo=self.campo_tipo.currentData(),
+            id=self.endereco_id,
+            rotulo=self.rotulo_endereco.text(),
             logradouro=self.logradouro.text(),
             numero=self.numero.text(),
             complemento=self.complemento.text(),

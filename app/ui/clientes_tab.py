@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.db import session_scope
-from app.models import Cliente, Evento, TipoCliente, TipoEndereco
+from app.models import Cliente, Evento, TipoCliente
 from app.repository import clientes as repo_clientes
 from app.repository import eventos as repo_eventos
 from app.repository import recorrencias as repo_recorrencias
@@ -55,7 +55,7 @@ def _situacao_do_fixo(regra) -> str:
 
 
 def _rotulo_endereco(evento: Evento) -> str:
-    return "—" if evento.endereco is None else evento.endereco.tipo.value
+    return "—" if evento.endereco is None else evento.endereco.etiqueta
 
 
 class ClientesTab(QWidget):
@@ -178,16 +178,13 @@ class ClientesTab(QWidget):
             dados.addWidget(rotulo(etiqueta, "campo"))
             dados.addWidget(campo)
 
-        self.form_residencial = EnderecoForm(TipoEndereco.RESIDENCIAL)
-        self.form_comercial = EnderecoForm(TipoEndereco.COMERCIAL)
 
         conteudo = QWidget()
         coluna = QVBoxLayout(conteudo)
         coluna.setContentsMargins(0, 0, 10, 0)
         coluna.setSpacing(14)
         coluna.addWidget(self.cartao_dados)
-        coluna.addWidget(self.form_residencial)
-        coluna.addWidget(self.form_comercial)
+        coluna.addWidget(self._montar_enderecos())
         coluna.addWidget(self._montar_fixos())
         coluna.addStretch(1)
 
@@ -245,6 +242,90 @@ class ClientesTab(QWidget):
 
         self.cartao_fixos = painel
         return painel
+
+    # ------------------------------------------------------------ endereços
+    def _montar_enderecos(self) -> QWidget:
+        """Lista de endereços: quantos o cliente tiver, com botão de incluir."""
+        painel = cartao(plano=True)
+        coluna = QVBoxLayout(painel)
+        coluna.setContentsMargins(16, 14, 16, 16)
+        coluna.setSpacing(10)
+
+        self.btn_endereco_novo = QPushButton("Adicionar endereço")
+        self.btn_endereco_novo.clicked.connect(self._adicionar_endereco)
+
+        # No cabeçalho do cartão, e visível mesmo fora da edição: clicar já
+        # abre a ficha para editar. Escondido no fim da lista, ninguém acha.
+        topo = QHBoxLayout()
+        topo.addWidget(rotulo("Endereços", "secao"))
+        self.contador_enderecos = rotulo("", "fraco")
+        topo.addWidget(self.contador_enderecos)
+        topo.addStretch(1)
+        topo.addWidget(self.btn_endereco_novo)
+        coluna.addLayout(topo)
+
+        self.aviso_enderecos = rotulo(
+            "Nenhum endereço cadastrado — sem endereço não dá para marcar"
+            " serviço.",
+            "fraco",
+        )
+        coluna.addWidget(self.aviso_enderecos)
+
+        self.lista_enderecos = QVBoxLayout()
+        self.lista_enderecos.setSpacing(10)
+        coluna.addLayout(self.lista_enderecos)
+
+        self.cartao_enderecos = painel
+        return painel
+
+    def _formularios_endereco(self) -> list[EnderecoForm]:
+        return [
+            self.lista_enderecos.itemAt(i).widget()
+            for i in range(self.lista_enderecos.count())
+            if isinstance(self.lista_enderecos.itemAt(i).widget(), EnderecoForm)
+        ]
+
+    def _limpar_enderecos(self) -> None:
+        while self.lista_enderecos.count():
+            item = self.lista_enderecos.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+
+    def _preencher_enderecos(self, cliente: Cliente | None) -> None:
+        self._limpar_enderecos()
+        enderecos = list(cliente.enderecos) if cliente is not None else []
+        for endereco in enderecos:
+            self._acrescentar_formulario(endereco)
+        self._atualizar_resumo_enderecos()
+
+    def _acrescentar_formulario(self, endereco=None) -> EnderecoForm:
+        formulario = EnderecoForm(endereco)
+        formulario.remocao_pedida.connect(self._remover_endereco)
+        formulario.somente_leitura(not self._editando)
+        self.lista_enderecos.addWidget(formulario)
+        return formulario
+
+    def _adicionar_endereco(self) -> None:
+        """Só faz sentido editando — e entrar em edição é o passo anterior."""
+        if not self._editando:
+            self._editar()
+        formulario = self._acrescentar_formulario()
+        formulario.somente_leitura(False)
+        formulario.rotulo_endereco.setFocus()
+        self._atualizar_resumo_enderecos()
+
+    def _remover_endereco(self, formulario: EnderecoForm) -> None:
+        self.lista_enderecos.removeWidget(formulario)
+        formulario.setParent(None)
+        formulario.deleteLater()
+        self._atualizar_resumo_enderecos()
+
+    def _atualizar_resumo_enderecos(self) -> None:
+        quantos = len(self._formularios_endereco())
+        self.contador_enderecos.setText(f"{quantos}" if quantos else "")
+        self.aviso_enderecos.setVisible(quantos == 0)
 
     # ---------------------------------------------------------- automáticos
     def _preencher_fixos(self) -> None:
@@ -508,10 +589,7 @@ class ClientesTab(QWidget):
         self.apelido.setText(cliente.apelido or "")
         self.telefone.setText(cliente.telefone or "")
         self.observacao.setPlainText(cliente.observacao or "")
-        self.form_residencial.preencher(
-            cliente.endereco_por_tipo(TipoEndereco.RESIDENCIAL)
-        )
-        self.form_comercial.preencher(cliente.endereco_por_tipo(TipoEndereco.COMERCIAL))
+        self._preencher_enderecos(cliente)
         self.titulo_ficha.setText(cliente.nome_exibicao)
 
     def _preencher_historico(self, historico: list[Evento]) -> None:
@@ -588,8 +666,7 @@ class ClientesTab(QWidget):
         self.apelido.clear()
         self.telefone.clear()
         self.observacao.clear()
-        self.form_residencial.limpar()
-        self.form_comercial.limpar()
+        self._preencher_enderecos(None)
         self._preencher_historico([])
         self.titulo_historico.setText("Histórico de serviços")
         self.titulo_ficha.setText("Novo cliente")
@@ -609,7 +686,7 @@ class ClientesTab(QWidget):
             apelido=self.apelido.text(),
             telefone=self.telefone.text(),
             observacao=self.observacao.toPlainText(),
-            enderecos=[self.form_residencial.dados(), self.form_comercial.dados()],
+            enderecos=[f.dados() for f in self._formularios_endereco()],
         )
         try:
             with session_scope() as sessao:
@@ -672,8 +749,7 @@ class ClientesTab(QWidget):
         self.apelido.clear()
         self.telefone.clear()
         self.observacao.clear()
-        self.form_residencial.limpar()
-        self.form_comercial.limpar()
+        self._preencher_enderecos(None)
         self._preencher_historico([])
         self._preencher_fixos()
         self.titulo_historico.setText("Histórico de serviços")
@@ -695,10 +771,11 @@ class ClientesTab(QWidget):
         self.observacao.setReadOnly(not editando)
         marcar(self.observacao, leitura=not editando)
         self.campo_tipo.somente_leitura(not editando)
-        self.form_residencial.somente_leitura(not editando)
-        self.form_comercial.somente_leitura(not editando)
+        for formulario in self._formularios_endereco():
+            formulario.somente_leitura(not editando)
+        self.btn_endereco_novo.setVisible(tem_ficha)
 
-        for widget in (self.cartao_dados, self.form_residencial, self.form_comercial):
+        for widget in (self.cartao_dados, self.cartao_enderecos):
             widget.setEnabled(tem_ficha)
 
         self.btn_editar.setVisible(not editando and self._cliente_id is not None)

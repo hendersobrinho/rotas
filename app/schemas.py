@@ -29,6 +29,9 @@ def _limpar(texto: str | None) -> str | None:
 @dataclass
 class DadosEndereco:
     tipo: TipoEndereco
+    # Preenchido quando o endereço já existe; None quando é um novo.
+    id: int | None = None
+    rotulo: str | None = None
     logradouro: str | None = None
     numero: str | None = None
     complemento: str | None = None
@@ -40,6 +43,8 @@ class DadosEndereco:
     def normalizado(self) -> "DadosEndereco":
         return DadosEndereco(
             tipo=self.tipo,
+            id=self.id,
+            rotulo=_limpar(self.rotulo),
             logradouro=_limpar(self.logradouro),
             numero=_limpar(self.numero),
             complemento=_limpar(self.complemento),
@@ -53,6 +58,7 @@ class DadosEndereco:
         dados = self.normalizado()
         return not any(
             (
+                dados.rotulo,
                 dados.logradouro,
                 dados.numero,
                 dados.complemento,

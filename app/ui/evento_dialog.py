@@ -337,7 +337,7 @@ class EventoDialog(QDialog):
 
         for endereco in cliente.enderecos:
             self.campo_endereco.addItem(
-                f"{endereco.tipo.value} — {endereco.resumo()}", endereco.id
+                f"{endereco.etiqueta} — {endereco.resumo()}", endereco.id
             )
         if precisa_escolher and anterior is None:
             self.campo_endereco.setCurrentIndex(0)

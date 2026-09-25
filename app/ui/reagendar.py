@@ -72,7 +72,7 @@ class ReagendarDialog(QDialog):
             self.campo_endereco.addItem("Escolha o endereço", None)
         for endereco in enderecos:
             self.campo_endereco.addItem(
-                f"{endereco.tipo.value} — {endereco.resumo()}", endereco.id
+                f"{endereco.etiqueta} — {endereco.resumo()}", endereco.id
             )
         if not enderecos:
             self.campo_endereco.addItem("Sem endereço cadastrado", None)
