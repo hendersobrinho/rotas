@@ -6,10 +6,12 @@ import sys
 
 from PySide6.QtWidgets import QApplication, QDialog
 
+from app import __version__
 from app import sessao as sessao_app
 from app.db import init_db, session_scope, url_mascarada
 from app.repository import recorrencias as repo_recorrencias
 from app.repository import tipos_servico as repo_tipos
+from app.ui import marca as marca_visual
 from app.ui.conexao_dialog import ConexaoDialog
 from app.ui.estilo import aplicar_tema
 from app.ui.login import LoginDialog, entrar_pelo_token
@@ -72,7 +74,13 @@ def main() -> int:
 
     app = QApplication(sys.argv)
     app.setApplicationName("Agenda do motoboy")
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("Escritório de Contabilidade")
+    # O ícone vale para toda janela do programa — inclusive o login e a tela de
+    # conexão, que aparecem antes da principal. No Linux o nome do .desktop é o
+    # que amarra a janela ao atalho, senão a barra de tarefas mostra um genérico.
+    app.setWindowIcon(marca_visual.icone())
+    app.setDesktopFileName("rotas")
     aplicar_tema(app)
 
     if not _preparar_banco():

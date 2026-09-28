@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app import __version__
 from app import sessao as sessao_app
 
 from app.db import session_scope, url_mascarada
@@ -78,7 +79,9 @@ class MainWindow(QMainWindow):
 
         usuario = sessao_app.usuario_atual()
         quem = f"{usuario.nome} ({usuario.login})" if usuario else "sem usuário"
-        self.statusBar().showMessage(f"{quem} · {url_mascarada()}")
+        self.statusBar().showMessage(
+            f"Rotas {__version__} · {quem} · {url_mascarada()}"
+        )
 
     def _ao_trocar_aba(self, indice: int) -> None:
         # Reler ao entrar na aba evita listas desatualizadas.

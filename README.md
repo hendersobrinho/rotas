@@ -6,6 +6,7 @@ residencial e comercial) e a agenda de eventos ligada a cada um.
 
 - **Interface:** PySide6 (Qt 6)
 - **Banco:** PostgreSQL via SQLAlchemy 2.0 (driver `psycopg` 3)
+- **Planilhas:** openpyxl, para o modelo e a importação de clientes
 
 ## Requisitos
 
@@ -48,6 +49,33 @@ O `.env` é lido automaticamente quando o pacote `python-dotenv` está instalado
 (ele está no `requirements.txt`). As variáveis de ambiente do sistema também
 funcionam sem `.env`.
 
+### Preparando o banco
+
+O sistema **não cria o banco nem o usuário** — isso é do PostgreSQL. Ele cria
+as tabelas sozinho. Então, no servidor, é só isto, uma vez:
+
+```sql
+CREATE USER rotas WITH PASSWORD 'a-senha-que-voce-escolher';
+CREATE DATABASE rotas OWNER rotas;
+```
+
+**O nome não é fixo.** Banco e usuário podem se chamar o que você quiser; o
+que importa é apontar o sistema para eles (`ROTAS_DB_NAME` e `ROTAS_DB_USER`,
+ou a tela de Conexão no Windows). `rotas` é só o padrão de quem não informa
+nada. O usuário precisa ser dono do banco, ou ter permissão de criar tabelas
+nele — é ele que roda o `CREATE TABLE` da primeira execução.
+
+Na primeira vez que o programa abre, então, acontece nesta ordem:
+
+1. conecta no banco e **cria as tabelas** que faltam (`create_all`);
+2. como ainda não existe usuário **do sistema**, a tela de entrada pede para
+   criar o primeiro — nome, login e senha. Esse é o login do programa, que não
+   tem nada a ver com o usuário do PostgreSQL.
+
+Banco em outro computador: libere o acesso de fora no servidor —
+`listen_addresses` no `postgresql.conf` e uma linha para a faixa da rede no
+`pg_hba.conf`.
+
 ## Rodando
 
 ```bash
@@ -64,8 +92,10 @@ main.py                    ponto de entrada: carrega .env, cria tabelas, abre a 
 rotas.spec                 receita do PyInstaller
 instalador/rotas.iss       receita do instalador do Windows (Inno Setup)
 app/
-├── recursos/              logotipo, ícone do Windows e as fontes embarcadas
+├── recursos/              logotipo, ícone do programa e as fontes embarcadas
 ├── caminhos.py            onde ficam configuração, dados e recursos
+├── planilha.py            leitura e escrita de .xlsx e .csv
+├── importacao_clientes.py colunas da planilha de clientes, modelo e conferência
 ├── db.py                  URL de conexão, engine, session_scope(), init_db()
 ├── models.py              as tabelas e os enums do domínio
 ├── schemas.py             dataclasses que a UI envia para o repository
@@ -80,7 +110,7 @@ app/
 │   ├── usuarios.py        contas, autenticação e sessões salvas
 │   └── logs.py            gravação e consulta do registro de atividades
 └── ui/
-    ├── marca.py           cores da marca e desenho do logotipo
+    ├── marca.py           cores da marca, logotipo e ícone do programa
     ├── estilo.py          tema claro: paleta, fontes e folha de estilo
     ├── main_window.py     janela com as abas Agenda, Clientes, Painel e Cadastros
     ├── eventos_tab.py     calendário do mês e a folha do dia
@@ -94,6 +124,7 @@ app/
     ├── reagendar.py       "não deu para fazer", remarcação e pendências
     ├── recorrencia_dialog.py  regra de um serviço fixo, com prévia das datas
     ├── conexao_dialog.py  configuração da conexão com o banco
+    ├── importar_clientes.py  prévia e gravação da planilha de clientes
     ├── seletor_cliente.py janela de busca de cliente
     ├── seletor_data.py    mini calendário de dia ou semana
     ├── painel_tab.py      indicadores e gráficos do período
@@ -108,6 +139,7 @@ testes/
 ├── teste_recorrencia.py   regras de repetição e abertura automática
 ├── teste_enderecos.py     vários endereços por cliente
 ├── teste_obrigatorios.py  cliente e endereço obrigatórios
+├── teste_importacao.py    modelo da planilha, leitura, conferência e gravação
 ├── teste_pdf.py           logotipo, cores, folha deitada e versão celular
 └── rodar.sh               roda tudo num banco de teste
 scripts/
@@ -115,6 +147,8 @@ scripts/
 ├── migrar_nao_realizado.py          migração do estado "não realizado"
 ├── migrar_servicos_fixos.py         migração dos serviços automáticos
 ├── migrar_varios_enderecos.py       libera vários endereços por cliente
+├── gerar_icones.py                  ícone do programa em todos os tamanhos
+├── instalar_atalho_linux.py         atalho no menu e na área de trabalho
 └── diagnostico_capslock.py          o que cada leitura do Caps Lock responde
 ```
 
@@ -147,6 +181,44 @@ A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
 - O histórico pode ser agrupado por **semana**, **mês** ou **ano**. Cada
   período vira uma faixa com o rótulo e a quantidade de serviços; nada é
   escondido, só organizado. A semana começa no domingo, igual ao calendário.
+
+### Importar clientes por planilha
+
+Cadastro em lote, para quem está começando a usar o sistema ou recebeu uma
+lista pronta. O botão *Importar planilha*, embaixo de *Novo cliente*, abre a
+tela.
+
+**Baixar o modelo.** O primeiro botão da tela gera uma planilha em branco com
+todas as colunas do cadastro e uma aba *Como preencher* explicando cada uma.
+As colunas de tipo já vêm com lista suspensa, e as células vêm formatadas como
+texto — senão o Excel come o zero à esquerda de um CEP.
+
+**Uma linha por cliente.** As primeiras colunas são os dados do cliente (tipo,
+nome/razão social, apelido, telefone, observação). Depois vem **um bloco de
+colunas para cada endereço** — *Endereço 1 - Tipo*, *Endereço 1 - Nome do
+endereço*, *Endereço 1 - Logradouro*... até a observação —, repetido três
+vezes. Cliente com mais de três endereços: copie o último bloco, cole no fim e
+troque o número para 4. A leitura conta os blocos pelo cabeçalho, não por um
+número fixo. Bloco totalmente em branco é ignorado.
+
+O cabeçalho é reconhecido **sem frescura de acento, caixa ou pontuação**:
+`Endereço 1 - Número`, `endereco 1 numero` e `ENDEREÇO 1 NUMERO` são a mesma
+coluna, e sinônimos comuns (*razão social*, *nome fantasia*, *fone*, *rua*,
+*município*) também passam. Dá para importar uma planilha que o escritório já
+mantém sem reescrever o cabeçalho. Também lê `.csv`.
+
+**Nada é gravado antes da conferência.** Escolhido o arquivo, a tela lista
+linha por linha o que vai acontecer: *Novo cadastro*, *Já cadastrado — fica de
+fora*, ou o problema encontrado, em vermelho. Entram nessa conta tipo que não é
+PF nem PJ, linha sem nome, texto maior do que o banco aceita, dois endereços do
+mesmo tipo com o mesmo nome e nome repetido dentro da própria planilha. As
+linhas boas entram; as tortas ficam de fora e a tela diz quantas foram.
+
+**Quem já existe** é reconhecido pelo nome/razão social. Por padrão fica de
+fora, para uma reimportação não desfazer o que foi ajustado na tela. Marcando
+*Atualizar os clientes que já estão cadastrados*, a ficha é substituída pelo
+que vier na planilha — **endereços inclusive**, os que não estiverem lá são
+removidos.
 
 ### Entrar no sistema
 
@@ -374,6 +446,39 @@ Para liberar vários endereços por cliente:
 As tabelas de usuários, sessões e registro de atividades são criadas sozinhas
 por `create_all` na primeira execução — não precisam de script.
 
+## Ícone do programa
+
+O ícone é `app/recursos/icone.svg` — o motoboy da marca. O desenho é deitado e
+o espaço que o sistema reserva para um ícone é quadrado, então ele entra
+centralizado e esticado até encostar nas laterais, mantendo a proporção: é o
+maior tamanho possível sem sair torto.
+
+Depois de mexer no desenho, gere de novo os tamanhos:
+
+```bash
+.venv/bin/python scripts/gerar_icones.py
+```
+
+Sai `app/recursos/rotas.ico` (é o que o PyInstaller embute no `.exe` e o Inno
+Setup usa no instalador), `app/recursos/icones/rotas-<lado>.png`, do 16 ao
+512, e `rotas.svg`, o mesmo desenho num quadrado para o tema de ícones do
+Linux. Cada tamanho é desenhado a partir do vetor, e não reduzido de um só,
+para nenhum sair borrado. Quem desenha é `marca.imagem_icone()` — o mesmo
+código que a janela usa, para o atalho e a barra de tarefas não divergirem.
+
+### Atalho no Linux
+
+No Windows quem cria os atalhos é o instalador. No Linux:
+
+```bash
+.venv/bin/python scripts/instalar_atalho_linux.py
+```
+
+Instala os ícones em `~/.local/share/icons/hicolor` — todos os tamanhos mais o
+vetorial em `scalable`, então o ambiente sempre acha uma versão nítida, por
+maior que ele queira desenhar — e escreve o `rotas.desktop` no menu e na área
+de trabalho. Para desfazer, `--remover`.
+
 ## Instalador para Windows
 
 O sistema empacota com PyInstaller e vira instalador com o Inno Setup. **A
@@ -388,7 +493,7 @@ python -m venv .venv
 .venv\Scripts\pyinstaller rotas.spec
 ```
 
-Sai `dist\Rotas\Rotas.exe`, já com o logotipo como ícone, as fontes embutidas
+Sai `dist\Rotas\Rotas.exe`, já com o ícone do programa, as fontes embutidas
 (Inter e JetBrains Mono não vêm no Windows) e o driver do PostgreSQL. Para
 virar instalador, abra `instalador\rotas.iss` no
 [Inno Setup](https://jrsoftware.org/isdl.php) e mande compilar: sai
