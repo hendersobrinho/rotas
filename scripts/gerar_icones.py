@@ -10,6 +10,10 @@ Sai daqui:
     Linux instala em ~/.local/share/icons (ver instalar_atalho_linux.py).
   * `app/recursos/icones/rotas.svg` — o mesmo desenho num quadrado, para a
     pasta `scalable` do tema de ícones, que espera ícones quadrados.
+  * `instalador/icone.ico` — o ícone do **instalador**, que é outro desenho e
+    não tem nada a ver com o do programa: quem clica nele está instalando, não
+    abrindo a agenda. Fica em `instalador/`, e não em `app/recursos/`, porque
+    não é recurso de execução — não tem por que viajar dentro do .exe.
 
 Quem desenha é `app.ui.marca.imagem_icone()` — o mesmo desenho que o programa
 usa na janela, para o atalho e a barra de tarefas nunca saírem diferentes.
@@ -40,6 +44,12 @@ TAMANHOS_ICO = (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
 # O Linux guarda um por pasta do hicolor; 512 cobre as telas de alta densidade.
 TAMANHOS_PNG = (16, 22, 24, 32, 48, 64, 128, 256, 512)
 
+# O ícone do instalador vem de um PNG de 96 px, e não de um vetor: daí o teto.
+# Passar disso seria ampliar, e o Windows amplia igual sozinho quando não acha
+# o tamanho — com a vantagem de não inchar o arquivo com borrão.
+INSTALADOR_PNG = RAIZ / "instalador" / "icone.png"
+TAMANHOS_INSTALADOR = (16, 20, 24, 32, 40, 48, 64, 96)
+
 
 def svg_quadrado() -> str:
     """O desenho deitado centralizado num quadrado, sem mexer no traçado.
@@ -66,6 +76,31 @@ def svg_quadrado() -> str:
         ' xmlns:xlink="http://www.w3.org/1999/xlink">\n'
         f'<g transform="translate({dx:g} {dy:g})">{miolo}</g>\n</svg>\n'
     )
+
+
+def icone_do_instalador() -> Path:
+    """O .ico do instalador, montado a partir de `instalador.png`.
+
+    Cada tamanho é reduzido do original com Lanczos, que é o que mantém os
+    contornos limpos nos pequenos; nenhum é ampliado.
+    """
+    original = Image.open(INSTALADOR_PNG).convert("RGBA")
+    if original.width != original.height:
+        raise SystemExit(f"{INSTALADOR_PNG.name} precisa ser quadrado")
+
+    uteis = [lado for lado in TAMANHOS_INSTALADOR if lado <= original.width]
+    quadros = [
+        original if lado == original.width
+        else original.resize((lado, lado), Image.LANCZOS)
+        for lado in uteis
+    ]
+    destino = INSTALADOR_PNG.with_suffix(".ico")
+    quadros[-1].save(
+        destino, format="ICO",
+        sizes=[(lado, lado) for lado in uteis],
+        append_images=quadros[:-1],
+    )
+    return destino
 
 
 def main() -> int:
@@ -95,6 +130,8 @@ def main() -> int:
     destino_svg = PASTA_PNG / "rotas.svg"
     destino_svg.write_text(svg_quadrado(), encoding="utf-8")
     print(f"  {destino_svg.relative_to(RAIZ)}")
+
+    print(f"  {icone_do_instalador().relative_to(RAIZ)}")
     return 0
 
 

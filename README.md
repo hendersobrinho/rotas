@@ -465,12 +465,17 @@ Depois de mexer no desenho, gere de novo os tamanhos:
 .venv/bin/python scripts/gerar_icones.py
 ```
 
-Sai `app/recursos/rotas.ico` (é o que o PyInstaller embute no `.exe` e o Inno
-Setup usa no instalador), `app/recursos/icones/rotas-<lado>.png`, do 16 ao
+Sai `app/recursos/rotas.ico` (é o que o PyInstaller embute no `.exe`), `app/recursos/icones/rotas-<lado>.png`, do 16 ao
 512, e `rotas.svg`, o mesmo desenho num quadrado para o tema de ícones do
 Linux. Cada tamanho é desenhado a partir do vetor, e não reduzido de um só,
 para nenhum sair borrado. Quem desenha é `marca.imagem_icone()` — o mesmo
 código que a janela usa, para o atalho e a barra de tarefas não divergirem.
+
+O mesmo comando gera `instalador/icone.ico`, o ícone do arquivo do instalador,
+a partir de `instalador/icone.png`. Esse vem de um PNG de 96 px, então o .ico
+para nos 96: ampliar só acrescentaria borrão, e o Windows amplia igual sozinho
+quando precisa de um tamanho maior. Ele fica em `instalador/` de propósito —
+não é recurso de execução e não tem por que viajar dentro do `.exe`.
 
 ### Atalho no Linux
 
@@ -503,8 +508,15 @@ Sai `dist\Rotas\Rotas.exe`, já com o ícone do programa, as fontes embutidas
 (Inter e JetBrains Mono não vêm no Windows) e o driver do PostgreSQL. Para
 virar instalador, abra `instalador\rotas.iss` no
 [Inno Setup](https://jrsoftware.org/isdl.php) e mande compilar: sai
-`instalador\saida\rotas-instalador.exe`, que instala para o usuário atual
-(sem pedir administrador) e cria os atalhos.
+`instalador\saida\rotas-instalador-1.0.0.exe` — a versão vai no nome do
+arquivo —, que instala para o usuário atual (sem pedir administrador) e cria
+os atalhos. O atalho, no menu e na área de trabalho, chama-se **MRotas**; o
+nome por extenso fica na dica que aparece ao passar o mouse.
+
+O arquivo do instalador tem **ícone próprio** (`instalador/icone.ico`), que
+não é o do programa: quem clica nele está instalando, não abrindo a agenda.
+O ícone do motoboy continua sendo o do `Rotas.exe`, o do atalho e o que a
+janela mostra.
 
 ### Banco em outro lugar
 

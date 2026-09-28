@@ -26,7 +26,10 @@ PASTA_PNG = RECURSOS / "icones"
 
 NOME_ICONE = "rotas"          # o mesmo nome vai no Icon= do .desktop
 ARQUIVO = "rotas.desktop"
-TITULO = "Agenda do motoboy"
+# Curto, que é o que cabe embaixo de um ícone; o nome por extenso fica no
+# Comment, que é o que o ambiente mostra ao passar o mouse.
+TITULO = "MRotas"
+DESCRICAO = "Agenda do motoboy — coletas e retiradas"
 
 DADOS = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
 ATALHOS = DADOS / "applications"
@@ -66,7 +69,7 @@ def _texto_do_atalho() -> str:
         "Type=Application",
         "Version=1.0",
         f"Name={TITULO}",
-        "Comment=Agenda de coletas e retiradas do motoboy",
+        f"Comment={DESCRICAO}",
         f"Exec={_interpretador()} {RAIZ / 'main.py'}",
         f"Path={RAIZ}",
         f"Icon={NOME_ICONE}",

@@ -3,12 +3,15 @@
 ; Monte primeiro o programa, no próprio Windows:
 ;     .venv\Scripts\pyinstaller rotas.spec
 ; Depois abra este arquivo no Inno Setup (https://jrsoftware.org/isdl.php)
-; e mande compilar. Sai `instalador\saida\rotas-instalador.exe`.
+; e mande compilar. Sai `instalador\saida\rotas-instalador-<versao>.exe`.
 
 ; A versão tem de bater com app/__init__.py — é de lá que sai a que aparece na
 ; janela e nas propriedades do Rotas.exe. Ao subir a versão, mude nos dois.
 #define Versao "1.0.0"
 #define Nome "Agenda do motoboy"
+; Como o atalho se chama no menu e na área de trabalho — curto, que é o que
+; cabe embaixo de um ícone sem virar reticências.
+#define NomeAtalho "MRotas"
 #define Empresa "Escritório de Contabilidade"
 #define Executavel "Rotas.exe"
 #define Origem "..\dist\Rotas"
@@ -29,11 +32,16 @@ VersionInfoVersion={#Versao}
 VersionInfoCompany={#Empresa}
 VersionInfoDescription=Instalador da {#Nome}
 DefaultDirName={autopf}\Rotas
-DefaultGroupName={#Nome}
+DefaultGroupName={#NomeAtalho}
 DisableProgramGroupPage=yes
 OutputDir=saida
-OutputBaseFilename=rotas-instalador
-SetupIconFile=..\app\recursos\rotas.ico
+; A versão no nome do arquivo: com dois instaladores na mesma pasta, dá para
+; saber qual é qual sem abrir nenhum.
+OutputBaseFilename=rotas-instalador-{#Versao}
+; Dois ícones diferentes, de propósito. Este é o do arquivo do instalador —
+; quem clica nele está instalando, não abrindo a agenda.
+SetupIconFile=icone.ico
+; Já este é o do programa, que é o que aparece em "Aplicativos instalados".
 UninstallDisplayIcon={app}\{#Executavel}
 UninstallDisplayName={#Nome}
 Compression=lzma2
@@ -60,8 +68,11 @@ Source: "{#Origem}\*"; DestDir: "{app}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#Nome}"; Filename: "{app}\{#Executavel}"
-Name: "{autodesktop}\{#Nome}"; Filename: "{app}\{#Executavel}"; Tasks: atalhodesktop
+; Os atalhos levam o nome curto e o ícone do próprio programa.
+Name: "{group}\{#NomeAtalho}"; Filename: "{app}\{#Executavel}"; \
+    Comment: "{#Nome}"
+Name: "{autodesktop}\{#NomeAtalho}"; Filename: "{app}\{#Executavel}"; \
+    Comment: "{#Nome}"; Tasks: atalhodesktop
 
 [Run]
 Filename: "{app}\{#Executavel}"; Description: "Abrir agora"; \
