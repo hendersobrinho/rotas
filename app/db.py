@@ -40,6 +40,15 @@ def url_mascarada() -> str:
     return make_url(database_url()).render_as_string(hide_password=True)
 
 
+# Quanto esperar por um servidor que não responde. Sem isto, um banco fora do
+# ar numa rede que engole o pacote (firewall que descarta em vez de recusar)
+# deixa o programa preso no connect do sistema operacional — no Windows isso
+# passa de vinte segundos, e antes da primeira janela: o processo abre e não
+# aparece nada na tela. Com o limite, o erro chega rápido e a tela de Conexão
+# assume. O libpq não aceita menos de 2 segundos.
+ESPERA_CONEXAO = max(2, int(os.getenv("ROTAS_DB_TIMEOUT", "5")))
+
+
 def get_engine() -> Engine:
     """Engine único da aplicação, criado na primeira chamada."""
     global _engine
@@ -48,6 +57,7 @@ def get_engine() -> Engine:
             database_url(),
             echo=os.getenv("ROTAS_SQL_ECHO") == "1",
             pool_pre_ping=True,
+            connect_args={"connect_timeout": ESPERA_CONEXAO},
         )
     return _engine
 

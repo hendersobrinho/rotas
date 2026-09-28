@@ -7,6 +7,7 @@ import sys
 from PySide6.QtWidgets import QApplication, QDialog
 
 from app import __version__
+from app import erros
 from app import sessao as sessao_app
 from app.db import init_db, session_scope, url_mascarada
 from app.repository import recorrencias as repo_recorrencias
@@ -69,7 +70,7 @@ def _abrir_servicos_fixos() -> None:
         print("não deu para abrir os serviços fixos:", erro)
 
 
-def main() -> int:
+def _executar() -> int:
     _carregar_env()
 
     app = QApplication(sys.argv)
@@ -94,6 +95,20 @@ def main() -> int:
         if not janela.saiu_pelo_logout:
             return 0
     return 0
+
+
+def main() -> int:
+    """Roda o programa; se algo escapar, o erro fica gravado em vez de sumir.
+
+    Empacotado não há console: sem isto, uma falha antes da primeira janela
+    aparece para quem usa como "o processo abre e não acontece nada".
+    """
+    erros.instalar()
+    try:
+        return _executar()
+    except Exception as erro:
+        erros.relatar(erro, "falha ao abrir o programa")
+        return 1
 
 
 if __name__ == "__main__":

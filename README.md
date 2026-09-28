@@ -43,6 +43,7 @@ cp .env.example .env
 | `ROTAS_DB_NAME` | Nome do banco | `rotas` |
 | `ROTAS_DB_USER` | Usuário | `postgres` |
 | `ROTAS_DB_PASSWORD` | Senha | vazio |
+| `ROTAS_DB_TIMEOUT` | Segundos de espera pelo servidor (mínimo 2) | `5` |
 | `ROTAS_SQL_ECHO` | `1` mostra o SQL gerado no terminal | `0` |
 
 O `.env` é lido automaticamente quando o pacote `python-dotenv` está instalado
@@ -512,6 +513,25 @@ faz perder o apontamento.
 
 No servidor do banco, lembre de liberar o acesso de fora: `listen_addresses`
 no `postgresql.conf` e uma linha para a faixa da rede no `pg_hba.conf`.
+
+### Abriu e não apareceu nada
+
+Sem console, um erro antes da primeira janela não tem para onde ir: o processo
+sobe e some da vista. Por isso toda falha não tratada é gravada em
+`%LOCALAPPDATA%\Rotas\erro.log` (no Linux, `~/.local/share/rotas/erro.log`),
+com data, versão, sistema e a conexão que estava valendo. É o primeiro lugar a
+olhar.
+
+Se o processo **fica de pé sem abrir janela**, quase sempre é o banco fora de
+alcance: um firewall que descarta o pacote em vez de recusar deixa o `connect`
+esperando o tempo do sistema operacional, e isso acontece antes de qualquer
+tela. A conexão tem um limite de 5 segundos (`ROTAS_DB_TIMEOUT` muda), depois
+do qual a tela de Conexão assume. Do computador em questão, dá para conferir o
+caminho até o servidor:
+
+```powershell
+Test-NetConnection servidor-do-banco -Port 5432
+```
 
 ## Verificações
 
