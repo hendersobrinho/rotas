@@ -46,7 +46,7 @@ def obter_cliente(sessao: Session, cliente_id: int) -> Cliente | None:
 
 def criar_cliente(sessao: Session, dados: DadosCliente) -> Cliente:
     dados = dados.normalizado()
-    _validar(dados)
+    validar(dados)
 
     cliente = Cliente(
         tipo=dados.tipo,
@@ -71,7 +71,7 @@ def atualizar_cliente(sessao: Session, cliente_id: int, dados: DadosCliente) -> 
         raise ValueError(f"Cliente {cliente_id} não encontrado.")
 
     dados = dados.normalizado()
-    _validar(dados)
+    validar(dados)
 
     cliente.tipo = dados.tipo
     cliente.nome = dados.nome
@@ -101,7 +101,12 @@ def excluir_cliente(sessao: Session, cliente_id: int) -> None:
     )
 
 
-def _validar(dados: DadosCliente) -> None:
+def validar(dados: DadosCliente) -> None:
+    """As regras do cadastro, antes de gravar.
+
+    É pública porque a importação por planilha confere as mesmas regras na
+    prévia, antes de gravar linha nenhuma (ver app/importacao_clientes.py).
+    """
     if not dados.nome:
         raise ValueError("O nome (ou razão social) é obrigatório.")
 

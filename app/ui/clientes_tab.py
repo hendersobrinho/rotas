@@ -30,6 +30,7 @@ from app.repository import recorrencias as repo_recorrencias
 from app.schemas import DadosCliente
 from app.ui.datas import Agrupamento, agrupar
 from app.ui.estilo import COR_STATUS, CORES, FONTE_DADOS, marcar
+from app.ui.importar_clientes import ImportarClientesDialog
 from app.ui.mensagens import confirmar, mostrar_erro
 from app.ui.recorrencia_dialog import RecorrenciaDialog
 from app.ui.widgets import (
@@ -118,7 +119,22 @@ class ClientesTab(QWidget):
         marcar(self.btn_novo, variante="primario")
         self.btn_novo.clicked.connect(self._novo)
         layout.addWidget(self.btn_novo)
+
+        self.btn_importar = QPushButton("Importar planilha")
+        self.btn_importar.setToolTip(
+            "Cadastra vários clientes de uma vez, a partir de uma planilha —"
+            " e é de lá que sai o modelo em branco para preencher."
+        )
+        self.btn_importar.clicked.connect(self._importar_planilha)
+        layout.addWidget(self.btn_importar)
         return caixa
+
+    def _importar_planilha(self) -> None:
+        """Cadastro em lote. Só recarrega se alguma coisa entrou de fato."""
+        dialogo = ImportarClientesDialog(self)
+        if dialogo.exec() == QDialog.DialogCode.Accepted and dialogo.importados:
+            self.recarregar()
+            self.dados_alterados.emit()
 
     # ----------------------------------------------------------------- ficha
     def _montar_ficha(self) -> QWidget:

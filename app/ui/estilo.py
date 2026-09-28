@@ -329,7 +329,11 @@ QTableWidget, QTableView {{
     gridline-color: transparent;
     outline: none;
 }}
-QTableWidget::item {{ padding: 7px 8px; color: {tinta}; }}
+/* Sem cor fixa aqui: a folha de estilo ganharia de setForeground() e as
+   linhas que as telas pintam (vermelho para o que tem problema, cinza para o
+   que está desligado) sairiam todas pretas. O padrão vem da paleta, que já
+   usa a mesma tinta. */
+QTableWidget::item {{ padding: 7px 8px; }}
 QTableWidget::item:selected {{ background: {azul_claro}; color: {tinta}; }}
 QHeaderView::section {{
     background: {papel};
