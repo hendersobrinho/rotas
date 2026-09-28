@@ -1,17 +1,45 @@
+# ---------------------------------------------------------------- Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
-.env
-.idea/
-.vscode/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
 
-# banco local de demonstração
+# ----------------------------------------------------------- configuração
+# A conexão com o banco (servidor, usuário, senha) nunca entra no repositório.
+# O modelo sem segredo nenhum, .env.example, esse sim fica versionado.
+.env
+.env.*
+!.env.example
+
+# ------------------------------------------------------ dados e saídas locais
+# Banco de demonstração, registros de execução e o que as verificações geram.
 *.db
 *.log
 testes/.dados/
 testes/.saida/
+
+# Planilhas geradas pelo próprio programa: o modelo em branco e as preenchidas
+# que alguém deixe na pasta para importar. O modelo é gerado pela tela, não
+# precisa ser guardado aqui.
+modelo-clientes.*
+
+# ------------------------------------------------------------ empacotamento
+# O que o PyInstaller e o Inno Setup montam é sempre refeito a partir do
+# código; nada disso é fonte.
 build/
 dist/
 *.spec.bak
 instalador/saida/
+
+# ------------------------------------------------------------- editores e SO
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
