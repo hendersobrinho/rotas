@@ -66,10 +66,14 @@ ou a tela de Conexão no Windows). `rotas` é só o padrão de quem não informa
 nada. O usuário precisa ser dono do banco, ou ter permissão de criar tabelas
 nele — é ele que roda o `CREATE TABLE` da primeira execução.
 
-Na primeira vez que o programa abre, então, acontece nesta ordem:
+Na primeira vez que o programa abre num computador, acontece nesta ordem:
 
-1. conecta no banco e **cria as tabelas** que faltam (`create_all`);
-2. como ainda não existe usuário **do sistema**, a tela de entrada pede para
+1. **se ninguém apontou um banco ainda**, a tela de Conexão abre logo de cara,
+   antes de qualquer tentativa — não faria sentido tentar o `postgres@localhost`
+   do padrão, que ou recusa, ou fica esperando. Informe o servidor, teste e
+   salve; fica guardado e das próximas vezes o programa abre direto;
+2. conecta no banco e **cria as tabelas** que faltam (`create_all`);
+3. como ainda não existe usuário **do sistema**, a tela de entrada pede para
    criar o primeiro — nome, login e senha. Esse é o login do programa, que não
    tem nada a ver com o usuário do PostgreSQL.
 
@@ -141,6 +145,7 @@ testes/
 ├── teste_enderecos.py     vários endereços por cliente
 ├── teste_obrigatorios.py  cliente e endereço obrigatórios
 ├── teste_importacao.py    modelo da planilha, leitura, conferência e gravação
+├── teste_conexao.py       primeiro acesso, tela de Conexão e limite de espera
 ├── teste_pdf.py           logotipo, cores, folha deitada e versão celular
 └── rodar.sh               roda tudo num banco de teste
 scripts/

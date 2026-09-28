@@ -27,7 +27,28 @@ def _carregar_env() -> None:
 
 
 def _preparar_banco() -> bool:
-    """Prepara o banco; se não conectar, abre a tela de conexão e tenta de novo."""
+    """Deixa o banco pronto, perguntando onde ele fica quando for preciso.
+
+    Na primeira vez neste computador ninguém apontou banco nenhum, e tentar
+    assim mesmo só levaria ao `postgres@localhost` do padrão: ou recusa, ou
+    fica esperando — e tudo isso antes de a primeira janela aparecer. Então a
+    tela de Conexão vem primeiro, e a tentativa é do botão dela. Configurado,
+    o caminho é o de sempre: conecta direto e só aparece se algo der errado.
+    """
+    from app import configuracao
+
+    if not configuracao.esta_configurado():
+        dialogo = ConexaoDialog(
+            None,
+            orientacao=(
+                "Primeiro acesso neste computador. Informe onde o PostgreSQL "
+                "está, use “Testar conexão” para conferir e depois “Salvar”. "
+                "Fica guardado, e das próximas vezes o programa abre direto."
+            ),
+        )
+        if dialogo.exec() != QDialog.DialogCode.Accepted:
+            return False
+
     while True:
         try:
             init_db()

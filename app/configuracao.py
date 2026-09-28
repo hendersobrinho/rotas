@@ -42,6 +42,24 @@ def url_completa() -> str | None:
     return os.environ.get(CHAVE_URL) or None
 
 
+def esta_configurado() -> bool:
+    """Alguém já disse onde o banco fica?
+
+    Na primeira vez que o programa roda num computador não há resposta para
+    isso, e tentar mesmo assim significa bater no `postgres@localhost` do
+    padrão — que ou recusa na hora, ou, pior, fica esperando. Melhor abrir a
+    tela de Conexão e perguntar antes de tentar qualquer coisa.
+    """
+    carregar_env()
+    if url_completa():
+        return True
+    # A senha fica de fora de propósito: banco local sem senha é válido.
+    return any(
+        os.environ.get(CAMPOS[nome][0], "").strip()
+        for nome in ("host", "banco", "usuario")
+    )
+
+
 def _linhas_existentes() -> list[str]:
     try:
         return ARQUIVO.read_text(encoding="utf-8").splitlines()
@@ -105,7 +123,9 @@ def testar(dados: dict[str, str]) -> str:
         f"postgresql+psycopg://{credenciais}@{dados.get('host') or 'localhost'}"
         f":{dados.get('porta') or '5432'}/{dados.get('banco') or 'rotas'}"
     )
-    motor = create_engine(url, connect_args={"connect_timeout": 5})
+    from app.db import ESPERA_CONEXAO
+
+    motor = create_engine(url, connect_args={"connect_timeout": ESPERA_CONEXAO})
     try:
         with motor.connect() as conexao:
             versao = conexao.execute(text("select version()")).scalar() or ""

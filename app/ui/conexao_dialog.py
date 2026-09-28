@@ -23,7 +23,12 @@ from app.ui.widgets import rotulo
 class ConexaoDialog(QDialog):
     """Onde o sistema procura o banco — some depois que tudo está no lugar."""
 
-    def __init__(self, parent: QWidget | None = None, aviso: str = "") -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        aviso: str = "",
+        orientacao: str = "",
+    ) -> None:
         super().__init__(parent)
         self.salvou = False
 
@@ -56,14 +61,22 @@ class ConexaoDialog(QDialog):
         )
         layout.addSpacing(8)
 
-        if aviso:
-            alerta = QLabel(aviso)
-            alerta.setWordWrap(True)
-            alerta.setStyleSheet(
-                f"background: {CORES['vermelho_claro']}; color: {CORES['vermelho']};"
+        # Duas tarjas diferentes de propósito: vermelha quando uma tentativa
+        # falhou, azul quando é só a explicação de quem chega aqui na primeira
+        # vez — não houve erro nenhum, e pintar de vermelho assustaria à toa.
+        for texto, tinta, fundo in (
+            (aviso, CORES["vermelho"], CORES["vermelho_claro"]),
+            (orientacao, CORES["azul"], CORES["azul_claro"]),
+        ):
+            if not texto:
+                continue
+            tarja = QLabel(texto)
+            tarja.setWordWrap(True)
+            tarja.setStyleSheet(
+                f"background: {fundo}; color: {tinta};"
                 "border-radius: 8px; padding: 8px 10px; font-size: 12px;"
             )
-            layout.addWidget(alerta)
+            layout.addWidget(tarja)
             layout.addSpacing(8)
 
         linha_servidor = QHBoxLayout()
