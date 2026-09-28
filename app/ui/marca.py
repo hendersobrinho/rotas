@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QWidget
 
 LOGO = caminhos.recurso("logo.svg")      # símbolo + palavra + seta
 SIMBOLO = caminhos.recurso("marca.svg")  # só o símbolo
+ICONE = caminhos.recurso("icone.svg")    # o motoboy, ícone do programa
 
 # As cores saem do próprio logotipo.
 AZUL_MARCA = "#203461"
@@ -48,26 +49,40 @@ def imagem(altura: int, simbolo: bool = False) -> QImage:
     return quadro
 
 
-def imagem_quadrada(lado: int) -> QImage:
-    """O símbolo centralizado num quadrado — é o que o Windows pede no ícone."""
-    renderizador = QSvgRenderer(str(SIMBOLO))
-    tamanho = renderizador.defaultSize()
-    util = lado * 0.88  # uma folga para o símbolo não encostar na borda
-    largura = util
-    altura = util * tamanho.height() / tamanho.width()
-    if altura > util:
-        altura = util
-        largura = util * tamanho.width() / tamanho.height()
+def imagem_icone(lado: int) -> QImage:
+    """O ícone do programa no maior tamanho que couber num quadrado de `lado`.
 
-    quadro = QImage(QSize(lado, lado), QImage.Format.Format_ARGB32_Premultiplied)
+    O desenho é deitado e o espaço que o sistema reserva para um ícone é
+    quadrado, então ele entra centralizado, esticado até encostar nas laterais
+    — mantendo a proporção, que distorcer para preencher ficaria torto. Desenha
+    grande e reduz com suavização: nos tamanhos pequenos os traços finos do
+    contorno somem se forem desenhados direto.
+    """
+    renderizador = QSvgRenderer(str(ICONE))
+    tamanho = renderizador.defaultSize()
+
+    grande = max(lado * 4, 512)
+    escala = min(grande / tamanho.width(), grande / tamanho.height())
+    largura = tamanho.width() * escala
+    altura = tamanho.height() * escala
+
+    quadro = QImage(QSize(grande, grande), QImage.Format.Format_ARGB32_Premultiplied)
     quadro.fill(Qt.GlobalColor.transparent)
     pintor = QPainter(quadro)
     pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+    pintor.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
     renderizador.render(
-        pintor, QRectF((lado - largura) / 2, (lado - altura) / 2, largura, altura)
+        pintor, QRectF((grande - largura) / 2, (grande - altura) / 2, largura, altura)
     )
     pintor.end()
-    return quadro
+
+    if grande == lado:
+        return quadro
+    return quadro.scaled(
+        lado, lado,
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
 
 
 @lru_cache(maxsize=16)
@@ -77,10 +92,14 @@ def pixmap(altura: int, simbolo: bool = False) -> QPixmap:
 
 @lru_cache(maxsize=1)
 def icone() -> QIcon:
-    """Ícone da janela, nos tamanhos que os ambientes costumam pedir."""
+    """Ícone do programa, nos tamanhos que os ambientes costumam pedir.
+
+    É o mesmo desenho do atalho da área de trabalho — ver
+    `scripts/gerar_icones.py`, que gera o .ico do Windows e os PNGs do Linux.
+    """
     icone_marca = QIcon()
-    for lado in (16, 24, 32, 48, 64, 128, 256):
-        icone_marca.addPixmap(QPixmap.fromImage(imagem_quadrada(lado)))
+    for lado in (16, 24, 32, 48, 64, 128, 256, 512):
+        icone_marca.addPixmap(QPixmap.fromImage(imagem_icone(lado)))
     return icone_marca
 
 
