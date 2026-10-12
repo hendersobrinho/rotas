@@ -95,7 +95,73 @@ def reiniciar() -> None:
 
 
 def init_db() -> None:
-    """Cria as tabelas que ainda não existem no banco."""
+    """Cria as tabelas que ainda não existem e acerta os dados antigos."""
     from app.models import Base  # import local evita dependência circular
 
     Base.metadata.create_all(get_engine())
+    _aplicar_migracoes()
+
+
+def _aplicar_migracoes() -> None:
+    """Roda, uma vez por banco, os acertos de dados que ainda não rodaram.
+
+    A anotação em `migracoes_aplicadas` entra antes do acerto e na mesma
+    transação: se outro computador abrir o programa ao mesmo tempo, o banco o
+    faz esperar e, quando este terminar, ele encontra a anotação e não repete.
+    Se o acerto falhar, a anotação some junto e a próxima abertura tenta de novo.
+    Já aplicadas, cada uma custa só esta tentativa de inserir uma linha.
+    """
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models import MigracaoAplicada
+
+    for nome, acerto in MIGRACOES:
+        with session_scope() as sessao:
+            anotada = sessao.execute(
+                insert(MigracaoAplicada)
+                .values(nome=nome)
+                .on_conflict_do_nothing()
+                .returning(MigracaoAplicada.nome)
+            ).first()
+            if anotada is not None:
+                acerto(sessao)
+
+
+# Os campos de texto que o cadastro de clientes grava em maiúsculas (ver
+# app/schemas.py). Os nomes são os mesmos nos modelos e nos schemas.
+CAMPOS_EM_MAIUSCULAS = {
+    "Cliente": ("nome", "apelido", "telefone", "observacao"),
+    "Endereco": (
+        "rotulo", "logradouro", "numero", "complemento",
+        "bairro", "cidade", "cep", "observacao",
+    ),
+}
+
+
+def _clientes_em_maiusculas(sessao: Session) -> None:
+    """Passa para maiúsculas o que foi gravado antes de existir essa regra."""
+    from sqlalchemy import select, update
+
+    from app import models
+    from app.schemas import maiusculo
+
+    for nome_modelo, campos in CAMPOS_EM_MAIUSCULAS.items():
+        modelo = getattr(models, nome_modelo)
+        colunas = [getattr(modelo, campo) for campo in campos]
+        for linha in sessao.execute(select(modelo.id, *colunas)).all():
+            mudancas = {
+                campo: maiusculo(valor)
+                for campo, valor in zip(campos, linha[1:])
+                if valor is not None and valor != maiusculo(valor)
+            }
+            if mudancas:
+                sessao.execute(
+                    update(modelo).where(modelo.id == linha.id).values(**mudancas)
+                )
+
+
+# Em ordem; o nome é a chave gravada no banco e não pode mudar depois de
+# publicado. Um acerto novo entra no fim, com nome novo.
+MIGRACOES = (
+    ("2026-10-clientes-em-maiusculas", _clientes_em_maiusculas),
+)

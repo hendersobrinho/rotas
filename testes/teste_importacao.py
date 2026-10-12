@@ -100,18 +100,18 @@ assert len(lidas) == 4, [l.nome for l in lidas]
 assert all(l.valida for l in lidas), [(l.nome, l.problema) for l in lidas]
 
 por_nome = {l.nome: l for l in lidas}
-nova_era = por_nome["Contabilidade Nova Era LTDA"].dados
+nova_era = por_nome["CONTABILIDADE NOVA ERA LTDA"].dados
 assert nova_era.tipo is TipoCliente.PJ
-assert nova_era.apelido == "Nova Era" and nova_era.telefone == "(31) 3010-2020"
+assert nova_era.apelido == "NOVA ERA" and nova_era.telefone == "(31) 3010-2020"
 assert len(nova_era.enderecos) == 2, len(nova_era.enderecos)
 assert nova_era.enderecos[0].tipo is TipoEndereco.COMERCIAL
-assert nova_era.enderecos[0].complemento == "Sala 704"
+assert nova_era.enderecos[0].complemento == "SALA 704"
 assert nova_era.enderecos[1].tipo is TipoEndereco.RESIDENCIAL
-assert nova_era.enderecos[1].rotulo == "Casa do Dr. Paulo"
-assert por_nome["Marina Alves Rocha"].dados.tipo is TipoCliente.PF
-assert por_nome["Marina Alves Rocha"].quantos_enderecos == 0
-assert por_nome["Mercado Dois Irmãos ME"].quantos_enderecos == 3
-vale = por_nome["Transportadora Vale Verde"].dados
+assert nova_era.enderecos[1].rotulo == "CASA DO DR. PAULO"
+assert por_nome["MARINA ALVES ROCHA"].dados.tipo is TipoCliente.PF
+assert por_nome["MARINA ALVES ROCHA"].quantos_enderecos == 0
+assert por_nome["MERCADO DOIS IRMÃOS ME"].quantos_enderecos == 3
+vale = por_nome["TRANSPORTADORA VALE VERDE"].dados
 assert vale.enderecos[0].tipo is TipoEndereco.COMERCIAL, "bloco sem tipo vira comercial"
 assert vale.enderecos[0].cep == "32600010", vale.enderecos[0].cep
 print("ok leu 4 clientes, com 0, 1, 2 e 3 endereços")
@@ -125,9 +125,9 @@ assert (resultado.criados, resultado.atualizados, resultado.ignorados) == (4, 0,
 
 with session_scope() as sessao:
     gravado = repo_clientes.listar_clientes(sessao, "Nova Era")[0]
-    assert gravado.nome == "Contabilidade Nova Era LTDA"
-    assert [e.etiqueta for e in gravado.enderecos] == ["Matriz", "Casa do Dr. Paulo"]
-    assert gravado.enderecos[0].cidade == "Belo Horizonte"
+    assert gravado.nome == "CONTABILIDADE NOVA ERA LTDA"
+    assert [e.etiqueta for e in gravado.enderecos] == ["MATRIZ", "CASA DO DR. PAULO"]
+    assert gravado.enderecos[0].cidade == "BELO HORIZONTE"
     irmaos = repo_clientes.listar_clientes(sessao, "Dois Irmãos")[0]
     assert len(irmaos.enderecos) == 3, len(irmaos.enderecos)
 print("ok gravou os 4 com os endereços em colunas separadas")
@@ -152,8 +152,8 @@ with session_scope() as sessao:
 assert (resultado.criados, resultado.atualizados) == (0, 1), resultado
 with session_scope() as sessao:
     atual = repo_clientes.listar_clientes(sessao, "Nova Era")[0]
-    assert atual.apelido == "Nova Era do Sul", atual.apelido
-    assert [e.etiqueta for e in atual.enderecos] == ["Matriz nova"], atual.enderecos
+    assert atual.apelido == "NOVA ERA DO SUL", atual.apelido
+    assert [e.etiqueta for e in atual.enderecos] == ["MATRIZ NOVA"], atual.enderecos
 print("ok cliente repetido: fica de fora, ou é atualizado quando se pede")
 
 # ---- linhas com problema -------------------------------------------------
@@ -179,7 +179,7 @@ assert "200 caracteres" in problemas[5], problemas
 assert problemas[6] is None, problemas
 assert "repetido" in problemas[7], problemas
 boas = [l for l in linhas if l.sera_gravada(atualizar=False)]
-assert len(boas) == 1 and boas[0].nome == "Cliente Bom LTDA"
+assert len(boas) == 1 and boas[0].nome == "CLIENTE BOM LTDA"
 with session_scope() as sessao:
     resultado = importacao.importar(sessao, linhas)
 assert (resultado.criados, resultado.ignorados) == (1, 5), resultado
@@ -196,9 +196,9 @@ caminho = SAIDA / "outro_cabecalho.csv"
 planilha.escrever_csv(caminho, OUTRO)
 linhas = importacao.ler(caminho)
 assert len(linhas) == 1 and linhas[0].valida, [l.problema for l in linhas]
-assert linhas[0].dados.apelido == "Livraria do Beco"
-assert linhas[0].dados.enderecos[0].logradouro == "Rua dos Caetés"
-assert linhas[0].dados.enderecos[0].cidade == "Belo Horizonte"
+assert linhas[0].dados.apelido == "LIVRARIA DO BECO"
+assert linhas[0].dados.enderecos[0].logradouro == "RUA DOS CAETÉS"
+assert linhas[0].dados.enderecos[0].cidade == "BELO HORIZONTE"
 print("ok cabeçalho sem acento/caixa/pontuação e planilha em csv")
 
 # ---- planilhas que não servem -------------------------------------------
@@ -250,5 +250,42 @@ dialogo._linhas = []
 dialogo._caminho = None
 dialogo._mostrar_previa()
 assert not dialogo.btn_importar.isEnabled()
+
+# ---- o que já estava no banco antes da regra das maiúsculas --------------
+from sqlalchemy import text  # noqa: E402
+
+from app.db import init_db  # noqa: E402
+
+with session_scope() as sessao:
+    # Um banco da versão 1.0.0: dados em minúsculas e o acerto ainda não feito.
+    sessao.execute(text("delete from migracoes_aplicadas"))
+    antigo_id = sessao.execute(text(
+        "insert into clientes (tipo, nome, apelido, observacao)"
+        " values ('PJ', 'Café São José ltda', 'café do zé', 'só à tarde')"
+        " returning id")).scalar_one()
+    sessao.execute(text(
+        "insert into enderecos (cliente_id, tipo, rotulo, logradouro, bairro, cidade)"
+        " values (:id, 'COMERCIAL', 'matriz', 'rua da conceição', 'são bento',"
+        " 'belo horizonte')"), {"id": antigo_id})
+init_db()  # o que o programa faz ao abrir, depois de atualizado
+with session_scope() as sessao:
+    antigo = repo_clientes.obter_cliente(sessao, antigo_id)
+    assert (antigo.nome, antigo.apelido, antigo.observacao) == (
+        "CAFÉ SÃO JOSÉ LTDA", "CAFÉ DO ZÉ", "SÓ À TARDE"), antigo.nome
+    endereco = antigo.enderecos[0]
+    assert (endereco.rotulo, endereco.logradouro, endereco.bairro, endereco.cidade) == (
+        "MATRIZ", "RUA DA CONCEIÇÃO", "SÃO BENTO", "BELO HORIZONTE"), endereco.logradouro
+print("ok ao abrir, o que já estava gravado passa para maiúsculas, com acento")
+
+# Feito uma vez, não roda de novo: o que entrar por fora do sistema fica como está.
+with session_scope() as sessao:
+    sessao.execute(text("update clientes set apelido = 'minúsculo' where id = :id"),
+                   {"id": antigo_id})
+init_db()
+with session_scope() as sessao:
+    assert repo_clientes.obter_cliente(sessao, antigo_id).apelido == "minúsculo"
+    anotadas = sessao.execute(text("select nome from migracoes_aplicadas")).scalars().all()
+    assert anotadas == ["2026-10-clientes-em-maiusculas"], anotadas
+print("ok o acerto fica anotado no banco e a abertura seguinte não repete")
 
 print("TESTE IMPORTACAO OK")

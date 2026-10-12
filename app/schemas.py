@@ -26,6 +26,16 @@ def _limpar(texto: str | None) -> str | None:
     return texto or None
 
 
+def maiusculo(texto: str | None) -> str | None:
+    """Limpa e passa para maiúsculas — o padrão do cadastro de clientes.
+
+    Usa o upper do Python, e não o do banco, porque o do PostgreSQL depende da
+    configuração de idioma do servidor e pode deixar “josé” como “JOSé”.
+    """
+    texto = _limpar(texto)
+    return texto.upper() if texto else None
+
+
 @dataclass
 class DadosEndereco:
     tipo: TipoEndereco
@@ -44,14 +54,14 @@ class DadosEndereco:
         return DadosEndereco(
             tipo=self.tipo,
             id=self.id,
-            rotulo=_limpar(self.rotulo),
-            logradouro=_limpar(self.logradouro),
-            numero=_limpar(self.numero),
-            complemento=_limpar(self.complemento),
-            bairro=_limpar(self.bairro),
-            cidade=_limpar(self.cidade),
-            cep=_limpar(self.cep),
-            observacao=_limpar(self.observacao),
+            rotulo=maiusculo(self.rotulo),
+            logradouro=maiusculo(self.logradouro),
+            numero=maiusculo(self.numero),
+            complemento=maiusculo(self.complemento),
+            bairro=maiusculo(self.bairro),
+            cidade=maiusculo(self.cidade),
+            cep=maiusculo(self.cep),
+            observacao=maiusculo(self.observacao),
         )
 
     def esta_vazio(self) -> bool:
@@ -82,10 +92,10 @@ class DadosCliente:
     def normalizado(self) -> "DadosCliente":
         return DadosCliente(
             tipo=self.tipo,
-            nome=(self.nome or "").strip(),
-            apelido=_limpar(self.apelido),
-            telefone=_limpar(self.telefone),
-            observacao=_limpar(self.observacao),
+            nome=maiusculo(self.nome) or "",
+            apelido=maiusculo(self.apelido),
+            telefone=maiusculo(self.telefone),
+            observacao=maiusculo(self.observacao),
             enderecos=[e.normalizado() for e in self.enderecos],
         )
 

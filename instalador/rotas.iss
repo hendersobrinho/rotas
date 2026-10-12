@@ -7,7 +7,7 @@
 
 ; A versão tem de bater com app/__init__.py — é de lá que sai a que aparece na
 ; janela e nas propriedades do Rotas.exe. Ao subir a versão, mude nos dois.
-#define Versao "1.0.0"
+#define Versao "1.0.1"
 #define Nome "Agenda do motoboy"
 ; Como o atalho se chama no menu e na área de trabalho — curto, que é o que
 ; cabe embaixo de um ícone sem virar reticências.

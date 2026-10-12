@@ -423,3 +423,20 @@ class Evento(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Evento id={self.id} data={self.data} status={self.status.name}>"
+
+
+class MigracaoAplicada(Base):
+    """Acertos de dados que já rodaram neste banco — cada um roda uma vez só.
+
+    O create_all cria tabela que falta, mas não mexe no que já está gravado.
+    Quando uma versão nova muda uma regra (os clientes em maiúsculas, por
+    exemplo), o acerto do que é antigo roda na abertura e fica anotado aqui,
+    para as aberturas seguintes não repetirem o trabalho.
+    """
+
+    __tablename__ = "migracoes_aplicadas"
+
+    nome: Mapped[str] = mapped_column(String(80), primary_key=True)
+    aplicada_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

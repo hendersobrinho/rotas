@@ -55,9 +55,9 @@ print("ok fio tricolor:", ", ".join(sorted(cores)))
 logotipo = marca.imagem(120)
 assert logotipo.width() > logotipo.height(), "logotipo deitado, proporção mantida"
 assert marca.imagem(64, simbolo=True).width() < logotipo.width()
-assert "Panificadora Estrela do Oriente LTDA" in html_tabela
-assert "Tratar por <b>Padaria da Ana</b>" in html_tabela
-assert "Obs.: Falar com a Ana" in html_tabela
+assert "PANIFICADORA ESTRELA DO ORIENTE LTDA" in html_tabela
+assert "Tratar por <b>PADARIA DA ANA</b>" in html_tabela
+assert "Obs.: FALAR COM A ANA" in html_tabela
 assert "maps/search" in html_tabela and "↗ mapa" in html_tabela
 assert "QUEM PEDIU" in html_tabela, "cabeçalho de colunas só no modo tabela"
 assert "QUEM PEDIU" not in html_lista
@@ -85,10 +85,10 @@ print("ok agrupamento:", " | ".join(
 
 for texto in (html_tabela, html_lista):
     assert "BELO HORIZONTE" in texto, "faixa da cidade"
-    assert "Savassi" in texto and "Floresta" in texto, "faixa do bairro"
+    assert "SAVASSI" in texto and "FLORESTA" in texto, "faixa do bairro"
     assert "MANHÃ" in texto and "TARDE" in texto, "período virou etiqueta"
 posicao_cidade = html_tabela.index("BELO HORIZONTE")
-assert posicao_cidade < html_tabela.index("Savassi") < html_tabela.index("Padaria")
+assert posicao_cidade < html_tabela.index("SAVASSI") < html_tabela.index("PADARIA")
 print("ok relatório: cidade, depois bairro, depois os serviços")
 
 # ---- páginas -------------------------------------------------------------

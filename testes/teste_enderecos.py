@@ -36,7 +36,7 @@ with session_scope() as sessao:
     cliente_id = cliente.id
     assert len(cliente.enderecos) == 3, len(cliente.enderecos)
     etiquetas = [e.etiqueta for e in cliente.enderecos]
-assert etiquetas == ["Loja 1", "Loja 2", "Depósito"], etiquetas
+assert etiquetas == ["LOJA 1", "LOJA 2", "DEPÓSITO"], etiquetas
 print("ok três endereços do mesmo tipo:", ", ".join(etiquetas))
 
 # dois com o mesmo nome não passam
@@ -63,11 +63,11 @@ with session_scope() as sessao:
         tipo=TipoCliente.PJ, nome="Rede Três Lojas LTDA",
         enderecos=[
             # mantém a Loja 1, mudando o número
-            DadosEndereco(TipoEndereco.COMERCIAL, id=ids["Loja 1"],
+            DadosEndereco(TipoEndereco.COMERCIAL, id=ids["LOJA 1"],
                           rotulo="Loja 1", logradouro="Rua A", numero="100",
                           cidade="BH"),
             # mantém o depósito
-            DadosEndereco(TipoEndereco.COMERCIAL, id=ids["Depósito"],
+            DadosEndereco(TipoEndereco.COMERCIAL, id=ids["DEPÓSITO"],
                           rotulo="Depósito", logradouro="Rua C", numero="3",
                           cidade="Contagem"),
             # um novo, sem id
@@ -77,11 +77,11 @@ with session_scope() as sessao:
 with session_scope() as sessao:
     depois = repo_clientes.obter_cliente(sessao, cliente_id)
     etiquetas = [e.etiqueta for e in depois.enderecos]
-    assert etiquetas == ["Loja 1", "Depósito", "Casa do dono"], etiquetas
-    loja = next(e for e in depois.enderecos if e.etiqueta == "Loja 1")
-    assert loja.id == ids["Loja 1"], "editar não recria o endereço"
+    assert etiquetas == ["LOJA 1", "DEPÓSITO", "CASA DO DONO"], etiquetas
+    loja = next(e for e in depois.enderecos if e.etiqueta == "LOJA 1")
+    assert loja.id == ids["LOJA 1"], "editar não recria o endereço"
     assert loja.numero == "100"
-    assert ids["Loja 2"] not in {e.id for e in depois.enderecos}
+    assert ids["LOJA 2"] not in {e.id for e in depois.enderecos}
 print("ok editou, acrescentou e removeu numa só gravação")
 
 # ---- pela tela -----------------------------------------------------------
@@ -113,7 +113,7 @@ aba._salvar()
 app.processEvents()
 with session_scope() as sessao:
     guardado = repo_clientes.obter_cliente(sessao, cliente_id)
-    assert [e.etiqueta for e in guardado.enderecos][-1] == "Quiosque"
+    assert [e.etiqueta for e in guardado.enderecos][-1] == "QUIOSQUE"
     assert len(guardado.enderecos) == 4
 print("ok incluiu o quarto endereço pela tela")
 
@@ -127,7 +127,7 @@ app.processEvents()
 with session_scope() as sessao:
     sobrou = repo_clientes.obter_cliente(sessao, cliente_id)
     assert len(sobrou.enderecos) == 3
-    assert "Loja 1" not in [e.etiqueta for e in sobrou.enderecos]
+    assert "LOJA 1" not in [e.etiqueta for e in sobrou.enderecos]
 print("ok removeu pela tela:", ", ".join(e.etiqueta for e in sobrou.enderecos))
 
 # o diálogo do serviço enxerga todos
@@ -139,6 +139,6 @@ dialogo = EventoDialog(None, lista, dia=dados["hoje"])
 dialogo._definir_cliente(cliente_id)
 assert dialogo.campo_endereco.count() == 3, dialogo.campo_endereco.count()
 textos = [dialogo.campo_endereco.itemText(i) for i in range(3)]
-assert any("Quiosque" in t for t in textos), textos
+assert any("QUIOSQUE" in t for t in textos), textos
 print("ok marcação oferece os três:", " | ".join(t.split(" — ")[0] for t in textos))
 print("TESTE ENDERECOS OK")
