@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from app.models import Cliente
 from app.ui.estilo import CORES, marcar
 from app.ui.widgets import (
+    em_lote,
     configurar_tabela,
     dado_da_linha,
     preencher_linha,
@@ -110,22 +111,23 @@ class SeletorClienteDialog(QDialog):
             or termo in sem_acento(cliente.apelido or "")
         ]
 
-        self.tabela.setRowCount(len(encontrados))
-        for linha, cliente in enumerate(encontrados):
-            preencher_linha(
-                self.tabela,
-                linha,
-                (
-                    cliente.nome_exibicao,
-                    cliente.tipo.name,
-                    cliente.telefone or "—",
-                    _cidade(cliente),
-                ),
-                dado=cliente.id,
-            )
-            item = self.tabela.item(linha, 0)
-            if item is not None and cliente.apelido and cliente.apelido != cliente.nome:
-                item.setToolTip(cliente.nome)
+        with em_lote(self.tabela):
+            self.tabela.setRowCount(len(encontrados))
+            for linha, cliente in enumerate(encontrados):
+                preencher_linha(
+                    self.tabela,
+                    linha,
+                    (
+                        cliente.nome_exibicao,
+                        cliente.tipo.name,
+                        cliente.telefone or "—",
+                        _cidade(cliente),
+                    ),
+                    dado=cliente.id,
+                )
+                item = self.tabela.item(linha, 0)
+                if item is not None and cliente.apelido and cliente.apelido != cliente.nome:
+                    item.setToolTip(cliente.nome)
 
         total = len(self._clientes)
         self.contador.setText(

@@ -528,6 +528,22 @@ a **tela de entrada** tem o painel marinho da marca ao lado do formulário.
 Os dados continuam com a própria paleta (os quatro tons dos tipos de serviço),
 que passou pela validação de daltonismo.
 
+### Tela de espera
+
+Quando abrir uma tela demora (muitos clientes, banco em outro computador), a
+janela fica **desfocada** por baixo e, no meio, o **R da marca se desenha**:
+o traço ciano percorre a letra como uma rota e o pino âmbar cai no fim, com a
+faixa tricolor correndo embaixo. O trabalho de banco roda em segundo plano, por
+isso a animação não trava; cliques e teclas esperam até terminar. Se carregar
+em menos de 0,15 s, nada aparece — e, aparecendo, fica ao menos meio segundo,
+para não piscar. Está em `app/ui/carregando.py` (`esperar(tela, função,
+texto)`), e hoje é usada na lista e na ficha de clientes.
+
+As listas longas (clientes, lembrancinhas, registro, histórico, busca de
+cliente) são preenchidas **em lote**: as colunas só são medidas no fim. Antes,
+cada célula escrita fazia o Qt medir a coluna inteira de novo — com 1.500
+clientes a lista levava minutos; agora, menos de meio segundo.
+
 ### Tema escuro
 
 O botão de **lua** no pé da barra lateral troca para o tema escuro (e o de
@@ -661,7 +677,7 @@ Sai `dist\Rotas\Rotas.exe`, já com o ícone do programa, as fontes embutidas
 (Sora, Plus Jakarta Sans e JetBrains Mono não vêm no Windows) e o driver do
 PostgreSQL. Para virar instalador, abra `instalador\rotas.iss` no
 [Inno Setup](https://jrsoftware.org/isdl.php) e mande compilar: sai
-`instalador\saida\rotas-instalador-1.4.1.exe` — a versão vai no nome do
+`instalador\saida\rotas-instalador-1.5.0.exe` — a versão vai no nome do
 arquivo —, que instala para o usuário atual (sem pedir administrador) e cria
 os atalhos. O atalho, no menu e na área de trabalho, chama-se **MRotas**; o
 nome por extenso fica na dica que aparece ao passar o mouse.
@@ -680,9 +696,9 @@ Para publicar uma versão:
 
 1. Suba a versão em `app/__init__.py` **e** em `instalador/rotas.iss`;
 2. gere o `.exe` e o instalador como acima;
-3. crie a release no GitHub com a tag `v1.4.1` (o número da versão), escreva as
+3. crie a release no GitHub com a tag `v1.5.0` (o número da versão), escreva as
    novidades no texto — é o que aparece para quem vai atualizar — e anexe o
-   `rotas-instalador-1.4.1.exe`. Rascunho e pré-lançamento são ignorados.
+   `rotas-instalador-1.5.0.exe`. Rascunho e pré-lançamento são ignorados.
 
 A consulta usa a API pública do GitHub, então **o repositório precisa ser
 público** (ou as releases não aparecem). Rodando a partir do código a consulta

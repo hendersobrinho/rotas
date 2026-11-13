@@ -484,6 +484,41 @@ def lembrancinhas(janela: MainWindow) -> None:
     print("ok lembrancinhas: cadastro, entrega por ano, filtro e exportação")
 
 
+def carregando(janela: MainWindow) -> None:
+    """A tela de espera: só aparece se demorar, e devolve o resultado (ou o erro)."""
+    import time
+
+    from app.ui import carregando as espera
+    from app.ui.carregando import TelaCarregando, esperar
+
+    janela.show()
+    app.processEvents()
+    vistas = []
+    original = espera.TelaCarregando.__init__
+
+    def contar(self, *a, **k):
+        vistas.append(self)
+        original(self, *a, **k)
+
+    espera.TelaCarregando.__init__ = contar
+    try:
+        assert esperar(janela, lambda: 7) == 7
+        assert vistas == [], "rápido não mostra nada"
+        assert esperar(janela, lambda: (time.sleep(0.4), "pronto")[1]) == "pronto"
+        assert len(vistas) == 1, "devagar mostra a tela de espera"
+        try:
+            esperar(janela, lambda: (_ for _ in ()).throw(ValueError("x")))
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("o erro da thread volta para quem chamou")
+    finally:
+        espera.TelaCarregando.__init__ = original
+    app.processEvents()
+    assert not [w for w in janela.findChildren(TelaCarregando) if w.isVisible()]
+    print("ok carregando: só aparece se demorar, devolve resultado e erro")
+
+
 def tema() -> None:
     """Tema escuro: monta a janela inteira; o PDF continua com cores claras."""
     from app.ui import estilo
@@ -571,6 +606,7 @@ escolhas()
 cadastros_e_painel(janela)
 baixas(janela)
 lembrancinhas(janela)
+carregando(janela)
 tema()
 
 with session_scope() as sessao:

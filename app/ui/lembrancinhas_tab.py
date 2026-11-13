@@ -42,6 +42,7 @@ from app.ui import marca as marca_visual
 from app.ui.estilo import CORES, FONTE_DADOS, FONTE_TITULO, marcar
 from app.ui.mensagens import confirmar, mostrar_erro
 from app.ui.widgets import (
+    em_lote,
     Etiqueta,
     Segmentado,
     cartao,
@@ -483,30 +484,31 @@ class LembrancinhasTab(QWidget):
         cabecalho = self.tabela.horizontalHeaderItem(COL_SITUACAO)
         if cabecalho is not None:
             cabecalho.setText(f"SITUAÇÃO {self.ano}")
-        self.tabela.setRowCount(len(visiveis))
-        fraco = QColor(CORES["tinta_fraca"])
-        for linha, destinatario in enumerate(visiveis):
-            textos = (
-                destinatario.nome,
-                destinatario.contato or "—",
-                destinatario.presente or "—",
-                destinatario.endereco_resumo() or "Sem endereço",
-                destinatario.telefone or "—",
-            )
-            for coluna, texto in enumerate(textos):
-                item = QTableWidgetItem(texto)
-                if coluna == 0:
-                    item.setData(Qt.ItemDataRole.UserRole, destinatario.id)
-                    fonte = item.font()
-                    fonte.setBold(True)
-                    item.setFont(fonte)
-                if not destinatario.ativo:
-                    item.setForeground(fraco)
-                self.tabela.setItem(linha, coluna, item)
-            self.tabela.setItem(linha, COL_SITUACAO, QTableWidgetItem(""))
-            self.tabela.setCellWidget(
-                linha, COL_SITUACAO, self._pastilha(destinatario)
-            )
+        with em_lote(self.tabela):
+            self.tabela.setRowCount(len(visiveis))
+            fraco = QColor(CORES["tinta_fraca"])
+            for linha, destinatario in enumerate(visiveis):
+                textos = (
+                    destinatario.nome,
+                    destinatario.contato or "—",
+                    destinatario.presente or "—",
+                    destinatario.endereco_resumo() or "Sem endereço",
+                    destinatario.telefone or "—",
+                )
+                for coluna, texto in enumerate(textos):
+                    item = QTableWidgetItem(texto)
+                    if coluna == 0:
+                        item.setData(Qt.ItemDataRole.UserRole, destinatario.id)
+                        fonte = item.font()
+                        fonte.setBold(True)
+                        item.setFont(fonte)
+                    if not destinatario.ativo:
+                        item.setForeground(fraco)
+                    self.tabela.setItem(linha, coluna, item)
+                self.tabela.setItem(linha, COL_SITUACAO, QTableWidgetItem(""))
+                self.tabela.setCellWidget(
+                    linha, COL_SITUACAO, self._pastilha(destinatario)
+                )
 
         total_ativos = sum(1 for d in self._todos if d.ativo)
         self.contador.setText(

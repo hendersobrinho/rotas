@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Iterable, Type
+from typing import Any, Iterable, Iterator, Type
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontMetrics
@@ -179,6 +180,31 @@ def configurar_tabela(
     else:
         cabecalho.setStretchLastSection(False)
         cabecalho.setSectionResizeMode(coluna_elastica, QHeaderView.ResizeMode.Stretch)
+
+
+@contextmanager
+def em_lote(tabela: QTableWidget) -> Iterator[None]:
+    """Preenche a tabela de uma vez, medindo as colunas só no fim.
+
+    Com as colunas em "ajustar ao conteúdo", cada célula escrita fazia o Qt
+    medir a coluna inteira de novo: encher 1.500 linhas levava minutos. Aqui
+    as colunas ficam paradas e a tela congelada enquanto se escreve, e no fim
+    cada coluna é medida uma única vez.
+    """
+    cabecalho = tabela.horizontalHeader()
+    ajustaveis = [
+        coluna for coluna in range(tabela.columnCount())
+        if cabecalho.sectionResizeMode(coluna) == QHeaderView.ResizeMode.ResizeToContents
+    ]
+    tabela.setUpdatesEnabled(False)
+    for coluna in ajustaveis:
+        cabecalho.setSectionResizeMode(coluna, QHeaderView.ResizeMode.Interactive)
+    try:
+        yield
+    finally:
+        for coluna in ajustaveis:
+            cabecalho.setSectionResizeMode(coluna, QHeaderView.ResizeMode.ResizeToContents)
+        tabela.setUpdatesEnabled(True)
 
 
 def preencher_linha(

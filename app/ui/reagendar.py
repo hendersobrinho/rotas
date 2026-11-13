@@ -22,6 +22,7 @@ from app.ui.estilo import CORES, marcar
 from app.ui.mensagens import mostrar_erro
 from app.ui.seletor_data import SeletorDeData
 from app.ui.widgets import (
+    em_lote,
     Segmentado,
     selecionar_dado,
     configurar_tabela,
@@ -222,19 +223,20 @@ class PendenciasDialog(QDialog):
             mostrar_erro(self, erro, "Erro ao carregar as pendências")
             return
 
-        self.tabela.setRowCount(len(pendentes))
-        for linha, evento in enumerate(pendentes):
-            preencher_linha(
-                self.tabela,
-                linha,
-                (
-                    evento.data.strftime("%d/%m/%Y"),
-                    evento.cliente.nome_exibicao,
-                    evento.tipo_servico.nome,
-                    evento.motivo or "—",
-                ),
-                dado=evento.id,
-            )
+        with em_lote(self.tabela):
+            self.tabela.setRowCount(len(pendentes))
+            for linha, evento in enumerate(pendentes):
+                preencher_linha(
+                    self.tabela,
+                    linha,
+                    (
+                        evento.data.strftime("%d/%m/%Y"),
+                        evento.cliente.nome_exibicao,
+                        evento.tipo_servico.nome,
+                        evento.motivo or "—",
+                    ),
+                    dado=evento.id,
+                )
         self.contador.setText(f"{len(pendentes)} sem remarcação")
         self.btn_reagendar.setEnabled(bool(pendentes))
         if pendentes:

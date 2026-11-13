@@ -48,6 +48,7 @@ from app.repository import lembrancinhas as repo_lembrancinhas
 from app.repository import recorrencias as repo_recorrencias
 from app.repository import socios as repo_socios
 from app.schemas import DadosCliente, DadosContato
+from app.ui.carregando import esperar
 from app.ui.datas import Agrupamento, agrupar
 from app.ui.estilo import COR_STATUS, CORES, FONTE_DADOS, FONTE_TITULO, marcar
 from app.ui.importar_clientes import ImportarClientesDialog
@@ -55,6 +56,7 @@ from app.ui.mensagens import confirmar, mostrar_erro
 from app.ui.recorrencia_dialog import RecorrenciaDialog
 from app.ui.seletor_cliente import SeletorClienteDialog, sem_acento
 from app.ui.widgets import (
+    em_lote,
     EnderecoForm,
     Segmentado,
     cartao,
@@ -549,39 +551,40 @@ class ClientesTab(QWidget):
         self._carregando = True
         try:
             self.tabela.clearSelection()
-            self.tabela.setRowCount(len(visiveis))
-            negrito = QFont()
-            negrito.setBold(True)
-            for linha, cliente in enumerate(visiveis):
-                preencher_linha(
-                    self.tabela,
-                    linha,
-                    (
-                        cliente.nome_exibicao,
-                        cliente.tipo.name,
-                        _telefones(cliente),
-                        _onde(cliente),
-                        self._texto_vinculos(cliente),
-                    ),
-                    dado=cliente.id,
-                )
-                nome = self.tabela.item(linha, 0)
-                nome.setFont(negrito)
-                nome.setToolTip(self._rotulo(cliente))
-                situacao = self._lembrancinhas.get(cliente.id)
-                if situacao is not None:
-                    nome.setText(f"{cliente.nome_exibicao}  🎁")
-                    nome.setToolTip(
-                        f"{self._rotulo(cliente)}\nRecebe lembrancinha"
-                        f" — {date.today().year}: {situacao.value.lower()}"
+            with em_lote(self.tabela):
+                self.tabela.setRowCount(len(visiveis))
+                negrito = QFont()
+                negrito.setBold(True)
+                for linha, cliente in enumerate(visiveis):
+                    preencher_linha(
+                        self.tabela,
+                        linha,
+                        (
+                            cliente.nome_exibicao,
+                            cliente.tipo.name,
+                            _telefones(cliente),
+                            _onde(cliente),
+                            self._texto_vinculos(cliente),
+                        ),
+                        dado=cliente.id,
                     )
-                tipo = self.tabela.item(linha, 1)
-                tipo.setForeground(QColor(_cores_do_tipo(cliente.tipo)[0]))
-                tipo.setFont(QFont(FONTE_DADOS, 9, QFont.Weight.Bold))
-                for coluna in (2, 3, 4):
-                    item = self.tabela.item(linha, coluna)
-                    if item.text() == "—":
-                        item.setForeground(QColor(CORES["tinta_fraca"]))
+                    nome = self.tabela.item(linha, 0)
+                    nome.setFont(negrito)
+                    nome.setToolTip(self._rotulo(cliente))
+                    situacao = self._lembrancinhas.get(cliente.id)
+                    if situacao is not None:
+                        nome.setText(f"{cliente.nome_exibicao}  🎁")
+                        nome.setToolTip(
+                            f"{self._rotulo(cliente)}\nRecebe lembrancinha"
+                            f" — {date.today().year}: {situacao.value.lower()}"
+                        )
+                    tipo = self.tabela.item(linha, 1)
+                    tipo.setForeground(QColor(_cores_do_tipo(cliente.tipo)[0]))
+                    tipo.setFont(QFont(FONTE_DADOS, 9, QFont.Weight.Bold))
+                    for coluna in (2, 3, 4):
+                        item = self.tabela.item(linha, coluna)
+                        if item.text() == "—":
+                            item.setForeground(QColor(CORES["tinta_fraca"]))
         finally:
             self._carregando = False
         total = len(self._clientes)
@@ -994,33 +997,34 @@ class ClientesTab(QWidget):
             return
 
         self.cartao_fixos.setEnabled(True)
-        self.tabela_fixos.setRowCount(len(regras))
-        for linha, regra in enumerate(regras):
-            preencher_linha(
-                self.tabela_fixos,
-                linha,
-                (
-                    repo_recorrencias.descrever(regra),
-                    regra.tipo_servico.nome,
-                    regra.periodo.value,
-                    _situacao_do_fixo(regra),
-                ),
-                dado=regra.id,
-            )
-            item = self.tabela_fixos.item(linha, 0)
-            if item is not None:
-                item.setToolTip(f"{gerados.get(regra.id, 0)} serviço(s) já abertos")
-            situacao = self.tabela_fixos.item(linha, 3)
-            if situacao is not None and regra.ativo and regra.endereco_id is None:
-                situacao.setForeground(QColor(CORES["vermelho"]))
-                situacao.setToolTip(
-                    "Sem endereço, a geração automática pula esta regra."
+        with em_lote(self.tabela_fixos):
+            self.tabela_fixos.setRowCount(len(regras))
+            for linha, regra in enumerate(regras):
+                preencher_linha(
+                    self.tabela_fixos,
+                    linha,
+                    (
+                        repo_recorrencias.descrever(regra),
+                        regra.tipo_servico.nome,
+                        regra.periodo.value,
+                        _situacao_do_fixo(regra),
+                    ),
+                    dado=regra.id,
                 )
-            if not regra.ativo:
-                for coluna in range(self.tabela_fixos.columnCount()):
-                    celula = self.tabela_fixos.item(linha, coluna)
-                    if celula is not None:
-                        celula.setForeground(QColor(CORES["tinta_fraca"]))
+                item = self.tabela_fixos.item(linha, 0)
+                if item is not None:
+                    item.setToolTip(f"{gerados.get(regra.id, 0)} serviço(s) já abertos")
+                situacao = self.tabela_fixos.item(linha, 3)
+                if situacao is not None and regra.ativo and regra.endereco_id is None:
+                    situacao.setForeground(QColor(CORES["vermelho"]))
+                    situacao.setToolTip(
+                        "Sem endereço, a geração automática pula esta regra."
+                    )
+                if not regra.ativo:
+                    for coluna in range(self.tabela_fixos.columnCount()):
+                        celula = self.tabela_fixos.item(linha, coluna)
+                        if celula is not None:
+                            celula.setForeground(QColor(CORES["tinta_fraca"]))
         self.contador_fixos.setText(f"{len(regras)}" if regras else "")
         self.tabela_fixos.setVisible(bool(regras))
         self.sem_fixos.setVisible(not regras)
@@ -1127,15 +1131,19 @@ class ClientesTab(QWidget):
     # ============================================================== dados
     def recarregar(self) -> None:
         """Relê a lista; com uma ficha aberta (sem edição), relê a ficha."""
-        try:
+        def buscar():
+            # Roda fora da tela (ver carregando.esperar): só banco aqui.
             with session_scope() as sessao:
-                self._clientes = repo_clientes.listar_clientes(sessao)
-                vinculos = sessao.execute(
-                    VinculoSocio.__table__.select()
-                ).all()
-                self._lembrancinhas = repo_lembrancinhas.situacao_por_cliente(
-                    sessao, date.today().year
+                return (
+                    repo_clientes.listar_clientes(sessao),
+                    sessao.execute(VinculoSocio.__table__.select()).all(),
+                    repo_lembrancinhas.situacao_por_cliente(sessao, date.today().year),
                 )
+
+        try:
+            self._clientes, vinculos, self._lembrancinhas = esperar(
+                self, buscar, "Carregando clientes…"
+            )
         except Exception as erro:
             mostrar_erro(self, erro, "Erro ao listar clientes")
             return
@@ -1215,18 +1223,27 @@ class ClientesTab(QWidget):
 
     def _abrir(self, cliente_id: int, anterior: int | None = None) -> None:
         """Mostra a ficha. O formulário também fica pronto, para o Editar."""
-        try:
+        def buscar():
             with session_scope() as sessao:
                 cliente = repo_clientes.obter_cliente(sessao, cliente_id)
                 if cliente is None:
-                    self.recarregar()
-                    return
-                historico = repo_eventos.historico_cliente(sessao, cliente_id)
-                socios = repo_socios.socios_da_empresa(sessao, cliente_id)
-                empresas = repo_socios.empresas_da_pessoa(sessao, cliente_id)
+                    return None
+                return (
+                    cliente,
+                    repo_eventos.historico_cliente(sessao, cliente_id),
+                    repo_socios.socios_da_empresa(sessao, cliente_id),
+                    repo_socios.empresas_da_pessoa(sessao, cliente_id),
+                )
+
+        try:
+            achado = esperar(self, buscar, "Abrindo a ficha…")
         except Exception as erro:
             mostrar_erro(self, erro, "Erro ao abrir cliente")
             return
+        if achado is None:
+            self.recarregar()
+            return
+        cliente, historico, socios, empresas = achado
 
         self._cliente_id = cliente_id
         self._editando = False
@@ -1471,41 +1488,42 @@ class ClientesTab(QWidget):
         grupos = agrupar(self._historico, self.campo_agrupamento.valor())
 
         tabela.clearSpans()
-        tabela.setRowCount(sum(1 + len(eventos) for _, eventos in grupos))
+        with em_lote(tabela):
+            tabela.setRowCount(sum(1 + len(eventos) for _, eventos in grupos))
 
-        linha = 0
-        for titulo, eventos in grupos:
-            self._linha_de_grupo(linha, f"{titulo}  ·  {len(eventos)}")
-            linha += 1
-            for evento in eventos:
-                preencher_linha(
-                    tabela,
-                    linha,
-                    (
-                        evento.data.strftime("%d/%m/%Y"),
-                        evento.tipo_servico.nome,
-                        evento.status.value,
-                    ),
-                    dado=evento.data,
-                )
-                detalhe = "\n".join(
-                    [
-                        f"Período: {evento.periodo.value}",
-                        f"Endereço: {_rotulo_endereco(evento)}",
-                        "Solicitante: "
-                        + (evento.solicitante.nome_exibicao
-                           if evento.solicitante else "—"),
-                    ]
-                )
-                for coluna in range(tabela.columnCount()):
-                    item = tabela.item(linha, coluna)
-                    if item is not None:
-                        item.setToolTip(detalhe)
-                cor, _ = COR_STATUS[evento.status]
-                situacao = tabela.item(linha, 2)
-                if situacao is not None:
-                    situacao.setForeground(QColor(cor))
+            linha = 0
+            for titulo, eventos in grupos:
+                self._linha_de_grupo(linha, f"{titulo}  ·  {len(eventos)}")
                 linha += 1
+                for evento in eventos:
+                    preencher_linha(
+                        tabela,
+                        linha,
+                        (
+                            evento.data.strftime("%d/%m/%Y"),
+                            evento.tipo_servico.nome,
+                            evento.status.value,
+                        ),
+                        dado=evento.data,
+                    )
+                    detalhe = "\n".join(
+                        [
+                            f"Período: {evento.periodo.value}",
+                            f"Endereço: {_rotulo_endereco(evento)}",
+                            "Solicitante: "
+                            + (evento.solicitante.nome_exibicao
+                               if evento.solicitante else "—"),
+                        ]
+                    )
+                    for coluna in range(tabela.columnCount()):
+                        item = tabela.item(linha, coluna)
+                        if item is not None:
+                            item.setToolTip(detalhe)
+                    cor, _ = COR_STATUS[evento.status]
+                    situacao = tabela.item(linha, 2)
+                    if situacao is not None:
+                        situacao.setForeground(QColor(cor))
+                    linha += 1
 
     def _linha_de_grupo(self, linha: int, texto: str) -> None:
         """Faixa que abre cada período, ocupando a largura toda da tabela."""

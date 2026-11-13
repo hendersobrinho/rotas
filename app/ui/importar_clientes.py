@@ -28,7 +28,7 @@ from app import planilha
 from app.db import session_scope
 from app.ui.estilo import CORES, marcar
 from app.ui.mensagens import confirmar, mostrar_erro
-from app.ui.widgets import configurar_tabela, preencher_linha, rotulo
+from app.ui.widgets import em_lote, configurar_tabela, preencher_linha, rotulo
 
 COLUNAS = ("Linha", "Cliente", "Tipo", "Endereços", "O que vai acontecer")
 NOME_MODELO = "modelo-clientes"
@@ -166,21 +166,22 @@ class ImportarClientesDialog(QDialog):
             else "Nenhuma planilha escolhida."
         )
 
-        self.tabela.setRowCount(len(self._linhas))
-        for indice, linha in enumerate(self._linhas):
-            preencher_linha(
-                self.tabela,
-                indice,
-                (
-                    str(linha.numero),
-                    linha.nome,
-                    linha.rotulo_tipo,
-                    str(linha.quantos_enderecos),
-                    linha.situacao(atualizar),
-                ),
-                dado=linha.numero,
-            )
-            self._pintar(indice, linha, atualizar)
+        with em_lote(self.tabela):
+            self.tabela.setRowCount(len(self._linhas))
+            for indice, linha in enumerate(self._linhas):
+                preencher_linha(
+                    self.tabela,
+                    indice,
+                    (
+                        str(linha.numero),
+                        linha.nome,
+                        linha.rotulo_tipo,
+                        str(linha.quantos_enderecos),
+                        linha.situacao(atualizar),
+                    ),
+                    dado=linha.numero,
+                )
+                self._pintar(indice, linha, atualizar)
 
         self.resumo.setText(self._texto_resumo(atualizar))
         self.btn_importar.setEnabled(

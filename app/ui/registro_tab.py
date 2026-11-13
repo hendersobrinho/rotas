@@ -25,6 +25,7 @@ from app.repository import usuarios as repo_usuarios
 from app.ui.estilo import CORES, marcar
 from app.ui.mensagens import mostrar_erro
 from app.ui.widgets import (
+    em_lote,
     cartao,
     combo_enum,
     configurar_tabela,
@@ -170,23 +171,24 @@ class RegistroTab(QWidget):
             mostrar_erro(self, erro, "Erro ao carregar o registro")
             return
 
-        self.tabela.setRowCount(len(registros))
-        for linha, registro in enumerate(registros):
-            preencher_linha(
-                self.tabela,
-                linha,
-                (
-                    registro.quando.astimezone().strftime("%d/%m/%Y  %H:%M"),
-                    registro.usuario_nome,
-                    registro.acao.value,
-                    registro.entidade.value,
-                    registro.descricao,
-                ),
-                dado=registro.id,
-            )
-            item = self.tabela.item(linha, 2)
-            if item is not None:
-                item.setForeground(QColor(_cor_acao(registro.acao)))
+        with em_lote(self.tabela):
+            self.tabela.setRowCount(len(registros))
+            for linha, registro in enumerate(registros):
+                preencher_linha(
+                    self.tabela,
+                    linha,
+                    (
+                        registro.quando.astimezone().strftime("%d/%m/%Y  %H:%M"),
+                        registro.usuario_nome,
+                        registro.acao.value,
+                        registro.entidade.value,
+                        registro.descricao,
+                    ),
+                    dado=registro.id,
+                )
+                item = self.tabela.item(linha, 2)
+                if item is not None:
+                    item.setForeground(QColor(_cor_acao(registro.acao)))
 
         if len(registros) >= LIMITE:
             self.contador.setText(
