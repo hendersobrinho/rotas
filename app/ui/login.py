@@ -6,6 +6,7 @@ from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -19,10 +20,55 @@ from app.db import session_scope
 from app.repository import usuarios as repo_usuarios
 from app.schemas import DadosUsuario
 from app.ui import marca as marca_visual
-from app.ui.estilo import CORES, FONTE_DADOS, marcar
+from app.ui.estilo import CORES, FONTE_DADOS, FONTE_TITULO, marcar
 from app.ui.mensagens import mostrar_erro
 from app.ui.teclado import caps_lock_ligado, inferir_do_evento
 from app.ui.widgets import rotulo
+
+
+def painel_da_marca(largura: int = 340) -> QFrame:
+    """O lado marinho das telas de entrada: logotipo, frase e a faixa."""
+    painel = QFrame()
+    painel.setObjectName("painelMarca")
+    painel.setFixedWidth(largura)
+    painel.setStyleSheet(
+        f"QFrame#painelMarca {{ background: {CORES['marca']}; border: none; }}"
+        "QFrame#painelMarca QLabel { background: transparent; }"
+    )
+    logotipo = QLabel()
+    logotipo.setPixmap(marca_visual.pixmap(64, escuro=True, assinado=True))
+
+    frase = QLabel("Do pedido à baixa,\ntoda rota no lugar.")
+    frase.setStyleSheet(
+        f'font-family: "{FONTE_TITULO}"; font-size: 22px; font-weight: 800;'
+        "color: #FFFFFF;"
+    )
+    itens = QLabel(
+        "".join(
+            f'<p style="margin:0 0 8px 0;"><span style="color:{CORES["laranja"]};">●'
+            f"</span>&nbsp;&nbsp;{texto}</p>"
+            for texto in (
+                "Agenda do motoboy, dia a dia",
+                "Baixas conferidas num quadro só",
+                "Lembrancinhas de fim de ano",
+            )
+        )
+    )
+    itens.setStyleSheet(f"color: {CORES['lateral_texto']}; font-size: 13px;")
+
+    conteudo = QVBoxLayout()
+    conteudo.setContentsMargins(34, 40, 34, 34)
+    conteudo.setSpacing(0)
+    conteudo.addWidget(logotipo)
+    conteudo.addStretch(1)
+    conteudo.addWidget(frase)
+    conteudo.addSpacing(18)
+    conteudo.addWidget(itens)
+
+    coluna = QVBoxLayout(painel)
+    coluna.setContentsMargins(0, 0, 0, 0)
+    coluna.addLayout(conteudo, 1)
+    return painel
 
 
 class LoginDialog(QDialog):
@@ -39,16 +85,18 @@ class LoginDialog(QDialog):
             mostrar_erro(self, erro, "Erro ao falar com o banco")
             self.primeiro_acesso = False
 
-        self.setWindowTitle("Agenda do motoboy")
-        self.setMinimumWidth(420)
+        self.setWindowTitle("Rotas · Entrar")
+        self.setFixedWidth(820)
         self.setStyleSheet(f"QDialog {{ background: {CORES['papel']}; }}")
 
-        marca = QLabel()
-        marca.setPixmap(marca_visual.pixmap(72))
+        titulo = rotulo(
+            "Primeiro acesso" if self.primeiro_acesso else "Bem-vindo de volta",
+            "titulo",
+        )
         subtitulo = rotulo(
             "Crie o usuário que vai administrar o sistema."
             if self.primeiro_acesso
-            else "Entre para ver a agenda.",
+            else "Entre para ver a agenda do motoboy.",
             "fraco",
         )
 
@@ -73,15 +121,14 @@ class LoginDialog(QDialog):
         )
         self._caps = False
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 26, 28, 22)
+        formulario = QWidget()
+        layout = QVBoxLayout(formulario)
+        layout.setContentsMargins(40, 40, 40, 28)
         layout.setSpacing(8)
-        layout.addWidget(marca)
-        layout.addSpacing(10)
-        layout.addWidget(marca_visual.faixa(3))
-        layout.addSpacing(10)
+        layout.addStretch(1)
+        layout.addWidget(titulo)
         layout.addWidget(subtitulo)
-        layout.addSpacing(12)
+        layout.addSpacing(18)
 
         if self.primeiro_acesso:
             layout.addWidget(rotulo("Nome", "campo"))
@@ -114,20 +161,21 @@ class LoginDialog(QDialog):
         layout.addWidget(self.aviso)
         layout.addSpacing(8)
 
+        # O botão principal é âmbar, cheio na largura: é a única ação da tela.
         entrar = QPushButton("Criar usuário" if self.primeiro_acesso else "Entrar")
         marcar(entrar, variante="primario")
-        # Na porta de entrada, o botão usa o azul do logotipo.
-        entrar.setStyleSheet(
-            f"QPushButton {{ background: {marca_visual.AZUL_MARCA};"
-            f" border-color: {marca_visual.AZUL_MARCA}; }}"
-            f"QPushButton:hover {{ background: {marca_visual.AZUL_TINTA};"
-            f" border-color: {marca_visual.AZUL_TINTA}; }}"
-        )
+        entrar.setMinimumHeight(42)
+        entrar.setCursor(Qt.CursorShape.PointingHandCursor)
+        entrar.setStyleSheet("font-size: 14px;")
         entrar.setDefault(True)
         entrar.clicked.connect(self._entrar)
+        layout.addWidget(entrar)
+        layout.addStretch(1)
+
         sair = QPushButton("Fechar")
+        marcar(sair, variante="fantasma")
         sair.clicked.connect(self.reject)
-        conexao = QPushButton("Conexão...")
+        conexao = QPushButton("Conexão com o banco...")
         marcar(conexao, variante="fantasma")
         conexao.setToolTip("Configurar onde fica o banco de dados")
         conexao.clicked.connect(self._configurar_conexao)
@@ -136,8 +184,21 @@ class LoginDialog(QDialog):
         rodape.addWidget(conexao)
         rodape.addStretch(1)
         rodape.addWidget(sair)
-        rodape.addWidget(entrar)
+        layout.addSpacing(12)
         layout.addLayout(rodape)
+
+        lados = QHBoxLayout()
+        lados.setContentsMargins(0, 0, 0, 0)
+        lados.setSpacing(0)
+        lados.addWidget(painel_da_marca(), 0)
+        lados.addWidget(formulario, 1)
+        # A faixa atravessa a janela inteira: no fundo marinho o pedaço
+        # marinho dela sumiria.
+        tudo = QVBoxLayout(self)
+        tudo.setContentsMargins(0, 0, 0, 0)
+        tudo.setSpacing(0)
+        tudo.addLayout(lados, 1)
+        tudo.addWidget(marca_visual.faixa(4))
 
         # As teclas vão para o campo, não para o diálogo: é preciso escutá-las lá.
         for campo in (self.campo_login, self.campo_senha, self.campo_confirmacao):

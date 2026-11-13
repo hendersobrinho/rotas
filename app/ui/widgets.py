@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Any, Iterable, Type
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -111,6 +112,13 @@ class Segmentado(QFrame):
             botao.setCheckable(True)
             botao.setCursor(Qt.CursorShape.PointingHandCursor)
             marcar(botao, variante="segmento")
+            # Largura do texto em negrito (o marcado engorda) mais o respiro
+            # da folha de estilo: sem isto, o layout aperta e corta o rótulo.
+            negrito = botao.font()
+            negrito.setBold(True)
+            botao.setMinimumWidth(
+                QFontMetrics(negrito).horizontalAdvance(membro.value) + 34
+            )
             self._grupo.addButton(botao, indice)
             layout.addWidget(botao)
 

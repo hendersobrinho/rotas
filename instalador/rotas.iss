@@ -7,7 +7,7 @@
 
 ; A versão tem de bater com app/__init__.py — é de lá que sai a que aparece na
 ; janela e nas propriedades do Rotas.exe. Ao subir a versão, mude nos dois.
-#define Versao "1.0.1"
+#define Versao "1.1.0"
 #define Nome "Agenda do motoboy"
 ; Como o atalho se chama no menu e na área de trabalho — curto, que é o que
 ; cabe embaixo de um ícone sem virar reticências.
@@ -38,8 +38,7 @@ OutputDir=saida
 ; A versão no nome do arquivo: com dois instaladores na mesma pasta, dá para
 ; saber qual é qual sem abrir nenhum.
 OutputBaseFilename=rotas-instalador-{#Versao}
-; Dois ícones diferentes, de propósito. Este é o do arquivo do instalador —
-; quem clica nele está instalando, não abrindo a agenda.
+; O ícone da marca (rotas-marca/icone/rotas.ico), o mesmo do programa.
 SetupIconFile=icone.ico
 ; Já este é o do programa, que é o que aparece em "Aplicativos instalados".
 UninstallDisplayIcon={app}\{#Executavel}
@@ -75,8 +74,12 @@ Name: "{autodesktop}\{#NomeAtalho}"; Filename: "{app}\{#Executavel}"; \
     Comment: "{#Nome}"; Tasks: atalhodesktop
 
 [Run]
+; Instalação normal: a pessoa escolhe se abre no fim.
 Filename: "{app}\{#Executavel}"; Description: "Abrir agora"; \
     Flags: nowait postinstall skipifsilent
+; Atualização automática: o programa roda este instalador com /SILENT
+; (ver app/atualizacao.py) e precisa abrir de novo sozinho no fim.
+Filename: "{app}\{#Executavel}"; Flags: nowait; Check: WizardSilent
 
 [UninstallDelete]
 ; A configuração de conexão e a sessão salva ficam no perfil do usuário e não

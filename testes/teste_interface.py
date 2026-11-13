@@ -218,9 +218,137 @@ def cadastros_e_painel(janela: MainWindow) -> None:
 
 def marca_visivel(janela: MainWindow) -> None:
     assert not janela.windowIcon().isNull(), "ícone da janela"
-    # A barra de abas fica limpa: o logotipo mora na tela de entrada.
-    assert janela.abas.cornerWidget(Qt.Corner.TopLeftCorner) is None
-    print("ok marca: ícone da janela, barra de abas sem logotipo")
+    # O logotipo mora no alto da barra lateral, na versão para fundo escuro.
+    assert not janela.logotipo.pixmap().isNull()
+    assert set(janela.navegacao) == {
+        MainWindow.ABA_AGENDA, MainWindow.ABA_BAIXAS, MainWindow.ABA_CLIENTES,
+        MainWindow.ABA_LEMBRANCINHAS, MainWindow.ABA_PAINEL,
+        MainWindow.ABA_CADASTROS, MainWindow.ABA_REGISTRO,
+    }
+    janela.abas.setCurrentIndex(MainWindow.ABA_PAINEL)
+    app.processEvents()
+    assert janela.navegacao[MainWindow.ABA_PAINEL].isChecked(), "lateral acompanha"
+    assert not janela.btn_atualizacao.isVisible(), "sem versão nova, sem botão"
+    print("ok marca: logotipo na barra lateral e navegação sincronizada")
+
+
+def calendario_por_situacao(janela: MainWindow) -> None:
+    """Baixado fica verde no calendário; só o que está em aberto tem a cor do tipo."""
+    from app.ui.estilo import COR_STATUS, cores_da_etiqueta, cores_no_calendario
+
+    aba = janela.aba_eventos
+    janela.abas.setCurrentIndex(MainWindow.ABA_AGENDA)
+    aba.voltar_ao_mes()
+    aba.recarregar()
+    app.processEvents()
+    with session_scope() as sessao:
+        eventos = repo_eventos.listar_eventos(sessao)
+    concluido = next(e for e in eventos if e.status is StatusEvento.CONCLUIDO)
+    pendente = next(e for e in eventos if e.status is StatusEvento.PENDENTE)
+    assert cores_no_calendario(concluido)[:2] == COR_STATUS[StatusEvento.CONCLUIDO]
+    assert cores_no_calendario(concluido)[2] == "✓"
+    assert cores_no_calendario(pendente)[:2] == cores_da_etiqueta(
+        pendente.tipo_servico.estilo
+    )
+    celula = next(
+        c for c in aba.calendario._celulas if c._dia == concluido.data
+    )
+    textos = [e.text() for e in celula._etiquetas if e.isVisibleTo(celula)]
+    assert any(t.startswith("✓") for t in textos), textos
+    print("ok calendário: baixado em verde com ✓, em aberto na cor do tipo")
+
+
+def baixas(janela: MainWindow) -> None:
+    """Quadro de baixas: atrasado aparece, dar baixa move para Baixados."""
+    from app.schemas import DadosEvento
+    from app.ui.baixas_tab import ATRASADOS, BAIXADOS, CartaoServico
+
+    with session_scope() as sessao:
+        modelo = repo_eventos.listar_eventos(sessao)[0]
+        atrasado = repo_eventos.criar_evento(sessao, DadosEvento(
+            cliente_id=modelo.cliente_id,
+            endereco_id=modelo.endereco_id,
+            tipo_servico_id=modelo.tipo_servico_id,
+            data=hoje - timedelta(days=3),
+            periodo=Periodo.MANHA,
+        ))
+        atrasado_id = atrasado.id
+
+    janela.abas.setCurrentIndex(MainWindow.ABA_BAIXAS)
+    app.processEvents()
+    quadro = janela.aba_baixas
+
+    def ids(coluna):
+        lista = quadro.colunas[coluna].lista
+        return [
+            lista.itemAt(i).widget().evento_id
+            for i in range(lista.count())
+            if isinstance(lista.itemAt(i).widget(), CartaoServico)
+        ]
+
+    assert atrasado_id in ids(ATRASADOS), "pendente de dia passado é atrasado"
+    contador = janela.navegacao[MainWindow.ABA_BAIXAS]._contador
+    assert contador.text() not in ("", "0"), "contador na barra lateral"
+
+    quadro._soltou(atrasado_id, ATRASADOS, BAIXADOS)  # o mesmo que arrastar
+    app.processEvents()
+    assert atrasado_id not in ids(ATRASADOS)
+    assert atrasado_id in ids(BAIXADOS)
+    with session_scope() as sessao:
+        assert repo_eventos.obter_evento(sessao, atrasado_id).status is (
+            StatusEvento.CONCLUIDO
+        )
+    print("ok baixas: atrasado no quadro, arrastar para Baixados conclui")
+
+
+def lembrancinhas(janela: MainWindow) -> None:
+    from app.models import SituacaoLembrancinha
+    from app.repository import lembrancinhas as repo_lembr
+    from app.schemas import DadosDestinatario
+    from app.ui.lembrancinhas_tab import linhas_para_exportar
+
+    tela = janela.aba_lembrancinhas
+    janela.abas.setCurrentIndex(MainWindow.ABA_LEMBRANCINHAS)
+    with session_scope() as sessao:
+        cliente = sessao.get(type(dados["clientes"][0]), dados["clientes"][0].id)
+        trazido = repo_lembr.criar(sessao, repo_lembr.dados_do_cliente(cliente))
+        avulso = repo_lembr.criar(sessao, DadosDestinatario(
+            nome="Dona Maria da Padaria", presente="cesta", bairro="savassi"
+        ))
+        trazido_id, avulso_id = trazido.id, avulso.id
+        assert avulso.nome == "DONA MARIA DA PADARIA", "maiúsculas, como clientes"
+        assert trazido.cliente_id == cliente.id and trazido.logradouro
+    try:
+        with session_scope() as sessao:
+            repo_lembr.criar(sessao, DadosDestinatario(nome="dona maria da padaria"))
+        raise AssertionError("nome repetido deveria ser recusado")
+    except ValueError:
+        pass
+
+    tela.recarregar()
+    app.processEvents()
+    assert tela.tabela.rowCount() == 2
+    assert "0 de 2" in tela.texto_andamento.text()
+
+    tela._selecionar(avulso_id)
+    tela._marcar(SituacaoLembrancinha.ENTREGUE)
+    app.processEvents()
+    assert "1 de 2" in tela.texto_andamento.text()
+    with session_scope() as sessao:
+        marcado = repo_lembr.obter(sessao, avulso_id)
+        assert marcado.situacao_no_ano(tela.ano) is SituacaoLembrancinha.ENTREGUE
+        assert marcado.situacao_no_ano(tela.ano + 1) is (
+            SituacaoLembrancinha.A_ENTREGAR
+        ), "cada ano começa a entregar"
+
+    tela.filtro.definir_valor(type(tela.filtro.valor())["A_ENTREGAR"])
+    tela._desenhar()
+    assert tela.tabela.rowCount() == 1
+
+    tela._selecionar(trazido_id)
+    planilha = linhas_para_exportar(tela._todos, tela.ano)
+    assert planilha[0][0] == "Nome" and len(planilha) == 3
+    print("ok lembrancinhas: cadastro, entrega por ano, filtro e exportação")
 
 
 def conexao() -> None:
@@ -277,10 +405,13 @@ app.processEvents()
 app.processEvents()
 
 marca_visivel(janela)
+calendario_por_situacao(janela)
 clientes(janela)
 agenda(janela)
 escolhas()
 cadastros_e_painel(janela)
+baixas(janela)
+lembrancinhas(janela)
 
 with session_scope() as sessao:
     assert repo_usuarios.existe_algum(sessao)

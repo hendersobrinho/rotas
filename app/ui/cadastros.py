@@ -312,7 +312,7 @@ class CadastrosTab(QWidget):
         super().__init__(parent)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(18, 10, 18, 18)
+        layout.setContentsMargins(28, 22, 28, 22)
         layout.setSpacing(16)
         layout.addWidget(self._montar_tipos(), 1)
         layout.addWidget(self._montar_solicitantes(), 1)

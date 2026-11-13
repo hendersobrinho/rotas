@@ -56,10 +56,7 @@ class Indicador(QFrame):
         topo.addStretch(1)
 
         self.valor = QLabel("0")
-        self.valor.setStyleSheet(
-            f'font-family: "{FONTE_DADOS}"; font-size: 26px; font-weight: 600;'
-            f"color: {CORES['tinta']};"
-        )
+        marcar(self.valor, papel="grande")
 
         coluna = QVBoxLayout(self)
         coluna.setContentsMargins(16, 12, 16, 14)
@@ -80,7 +77,7 @@ class PainelTab(QWidget):
         self._modo = Agrupamento.MES
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 10, 18, 18)
+        layout.setContentsMargins(28, 22, 28, 22)
         layout.setSpacing(14)
         layout.addLayout(self._montar_cabecalho())
         layout.addLayout(self._montar_indicadores())

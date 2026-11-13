@@ -333,6 +333,52 @@ botão vermelho com a contagem, que abre a lista dos serviços não realizados s
 remarcação — de lá dá para resolver um por um. Sem pendência, o botão nem
 aparece.
 
+### Baixas
+
+O quadro de **Baixas** junta as rotas que ainda esperam confirmação, em quatro
+colunas:
+
+- **Atrasados** — dias que já passaram com o serviço ainda pendente: ninguém
+  confirmou se o motoboy foi. Mais antigos em cima, com "há N dias";
+- **Hoje** — o que está na rua, para ir dando baixa ao longo do dia;
+- **Não realizados** — não deu para fazer e ainda não foi remarcado;
+- **Baixados** — concluídos nos últimos sete dias, para conferir e desfazer
+  algum engano.
+
+O cartão muda de coluna **arrastando** ou pelos botões dele (*Dar baixa*, *Não
+deu*, *Remarcar*, *Desfazer*); dois cliques abrem o serviço. Os atrasados têm
+*Baixar todos*, com confirmação. O item **Baixas** da barra lateral mostra quantos
+pedem ação (atrasados + não realizados), e o botão *Sem baixa* da agenda leva
+ao quadro.
+
+No caminho do PDF também: se houver atrasados ou não realizados, a tela de
+*Emitir PDF* avisa antes de mandar a rota nova para a rua, com o atalho *Ver
+baixas*. O aviso não impede de emitir.
+
+No **calendário**, só o que está em aberto fica com a cor do tipo de serviço:
+o que já teve baixa fica **verde com ✓**, o não realizado vermelho com ✕ e o
+cancelado cinza riscado. Os em aberto aparecem primeiro na célula. No canto do
+dia, um selo âmbar com a contagem marca dia que passou com algo sem baixa; um
+✓ verde, dia com tudo baixado.
+
+### Lembrancinhas
+
+Cadastro à parte para quem recebe a **lembrancinha de fim de ano** do
+escritório: nome, a quem entregar, telefone, o presente, endereço e observação
+(em maiúsculas, como os clientes). *Trazer de Clientes* começa a ficha a partir
+de um cliente da agenda, já com o endereço comercial, e deixa os dois ligados.
+
+Cada **campanha** (ano) tem a sua situação por destinatário: *A entregar*,
+*Entregue* (com a data) ou *Não enviar*. Quando o ano vira, todo mundo volta a
+*A entregar* e o histórico dos anos anteriores continua anotado — as setas ao
+lado do ano navegam entre campanhas. Em janeiro a tela ainda abre na campanha
+do ano que acabou. Quem não deve mais receber é desmarcado em *Recebe
+lembrancinha* e sai da contagem sem perder o histórico.
+
+A barra de andamento mostra quantos já foram entregues; *Exportar planilha*
+gera um .xlsx (ou .csv) com a lista filtrada, para imprimir ou mandar para quem
+vai entregar.
+
 ### Painel
 
 Indicadores e gráficos do período escolhido — **semana**, **mês** ou **ano** —
@@ -388,22 +434,30 @@ réguas como fios de 0,085 mm em vez dos traços de 0,34 mm que saíam antes.
 
 ## Visual
 
-A identidade vem do logotipo do escritório (`app/recursos/logo.svg`): azul
-escuro `#203461`, ciano `#4BBDCD` e laranja `#F9B259`. O logotipo abre a tela
-de entrada e cada relatório; o símbolo é o ícone da janela. O fio das três
-cores aparece na tela de entrada, no rodapé da janela e, no PDF, só na folha
-larga — na estreita do celular ele roubaria espaço. A área de trabalho fica
-limpa de marca, para não competir com o conteúdo. Essas cores são a moldura do
-sistema; os dados continuam com a própria paleta, que passou pela validação de
-daltonismo.
+A identidade é a da pasta da marca (`rotas-marca/`, com o guia em
+`LEIA-ME.md`); os arquivos que o programa usa ficam em `app/recursos/marca/`,
+`app/recursos/fontes/` e `app/recursos/icones/`.
 
-O app tem tema claro próprio e não acompanha o tema escuro do sistema: a
-paleta, as fontes e a folha de estilo ficam todas em `app/ui/estilo.py`, e
-`aplicar_tema()` é chamado em `main.py` antes de abrir a janela. A direção é
-papel de agenda de escritório — fundo branco, pautas finas, azul-caneta como
-acento e laranja-carimbo para as retiradas. Texto em **Inter**; **JetBrains
-Mono** só nos números e nas etiquetas. Se alguma dessas fontes não estiver
-instalada, o Qt cai para a fonte padrão do sistema sem quebrar nada.
+- **Cores**: Marinho `#203461` (base, barra lateral, fundo do ícone), Ciano
+  `#4BBDCD` (foco e seleção — nunca texto em fundo branco), Âmbar `#F9B259`
+  (botão principal, com texto em Tinta, e tudo que está pendente), Tinta
+  `#16244A`, Ardósia `#5B6782`, Névoa `#F4F6FA` (fundo) e Linha `#E1E6F0`.
+- **Faixa tricolor**: âmbar 25% · ciano 33% · marinho 42%, no alto da área de
+  trabalho, no rodapé da tela de entrada e no PDF largo.
+- **Fontes**: **Sora** nos títulos e números grandes, **Plus Jakarta Sans** na
+  interface, **JetBrains Mono** em datas e etiquetas — todas embarcadas (licença
+  SIL OFL), porque no Windows elas não vêm instaladas.
+
+A janela tem uma **barra lateral marinho** com o logotipo, a navegação (com
+ícones desenhados em `app/ui/icones.py`), o contador de baixas, o botão de
+atualização quando houver e o cartão de quem está conectado. Ao abrir, uma
+**tela de abertura** com a marca e a faixa animada cobre a conexão com o banco;
+a **tela de entrada** tem o painel marinho da marca ao lado do formulário.
+
+Os dados continuam com a própria paleta (os quatro tons dos tipos de serviço),
+que passou pela validação de daltonismo. O app tem tema claro próprio e não
+acompanha o tema escuro do sistema: paleta, fontes e folha de estilo ficam em
+`app/ui/estilo.py`.
 
 ## Conexão com o banco pela tela
 
@@ -454,10 +508,9 @@ por `create_all` na primeira execução — não precisam de script.
 
 ## Ícone do programa
 
-O ícone é `app/recursos/icone.svg` — o motoboy da marca. O desenho é deitado e
-o espaço que o sistema reserva para um ícone é quadrado, então ele entra
-centralizado e esticado até encostar nas laterais, mantendo a proporção: é o
-maior tamanho possível sem sair torto.
+O ícone é `app/recursos/icone.svg` — o R com o pino, no quadrado marinho da
+marca (`rotas-marca/icone/`). O `.ico` e os PNGs vêm prontos da pasta da marca;
+o instalador usa o mesmo `.ico`.
 
 Depois de mexer no desenho, gere de novo os tamanhos:
 
@@ -505,18 +558,36 @@ python -m venv .venv
 ```
 
 Sai `dist\Rotas\Rotas.exe`, já com o ícone do programa, as fontes embutidas
-(Inter e JetBrains Mono não vêm no Windows) e o driver do PostgreSQL. Para
-virar instalador, abra `instalador\rotas.iss` no
+(Sora, Plus Jakarta Sans e JetBrains Mono não vêm no Windows) e o driver do
+PostgreSQL. Para virar instalador, abra `instalador\rotas.iss` no
 [Inno Setup](https://jrsoftware.org/isdl.php) e mande compilar: sai
-`instalador\saida\rotas-instalador-1.0.0.exe` — a versão vai no nome do
+`instalador\saida\rotas-instalador-1.1.0.exe` — a versão vai no nome do
 arquivo —, que instala para o usuário atual (sem pedir administrador) e cria
 os atalhos. O atalho, no menu e na área de trabalho, chama-se **MRotas**; o
 nome por extenso fica na dica que aparece ao passar o mouse.
 
-O arquivo do instalador tem **ícone próprio** (`instalador/icone.ico`), que
-não é o do programa: quem clica nele está instalando, não abrindo a agenda.
-O ícone do motoboy continua sendo o do `Rotas.exe`, o do atalho e o que a
-janela mostra.
+### Atualização automática
+
+O programa instalado consulta o GitHub (`hendersobrinho/rotas`) alguns
+segundos depois de abrir. Havendo versão nova, aparece na barra lateral o botão
+âmbar **Atualizar para X.Y.Z**: o clique mostra as notas da versão e, com
+*Atualizar agora*, baixa o instalador, confere o arquivo (tamanho e sha256 que
+o GitHub publica) e o executa em modo silencioso — o programa fecha, os
+arquivos são trocados e ele abre de novo sozinho. O banco não é tocado. O link
+*buscar atualização*, embaixo na barra lateral, faz a consulta na hora.
+
+Para publicar uma versão:
+
+1. Suba a versão em `app/__init__.py` **e** em `instalador/rotas.iss`;
+2. gere o `.exe` e o instalador como acima;
+3. crie a release no GitHub com a tag `v1.2.0` (o número da versão), escreva as
+   novidades no texto — é o que aparece para quem vai atualizar — e anexe o
+   `rotas-instalador-1.2.0.exe`. Rascunho e pré-lançamento são ignorados.
+
+A consulta usa a API pública do GitHub, então **o repositório precisa ser
+público** (ou as releases não aparecem). Rodando a partir do código a consulta
+automática fica desligada, e `ROTAS_SEM_ATUALIZACAO=1` desliga também no
+programa instalado.
 
 ### Banco em outro lugar
 

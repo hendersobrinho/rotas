@@ -271,6 +271,8 @@ class Cliente(Base):
     recorrencias: Mapped[list["Recorrencia"]] = relationship(
         back_populates="cliente", cascade="all, delete-orphan"
     )
+    # Sem relacionamento com as lembrancinhas de propósito: apagar o cliente
+    # só desfaz o vínculo (ondelete SET NULL), não apaga o destinatário.
 
     @property
     def nome_exibicao(self) -> str:
@@ -423,6 +425,114 @@ class Evento(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Evento id={self.id} data={self.data} status={self.status.name}>"
+
+
+class SituacaoLembrancinha(enum.Enum):
+    """Como está a lembrancinha de um destinatário num ano.
+
+    Gravada como texto (o nome do membro), e não como enum do PostgreSQL:
+    acrescentar uma situação depois não exige mexer no tipo do banco.
+    """
+
+    A_ENTREGAR = "A entregar"
+    ENTREGUE = "Entregue"
+    NAO_ENVIAR = "Não enviar"
+
+
+class DestinatarioLembrancinha(Base):
+    """Quem recebe a lembrancinha de fim de ano do escritório.
+
+    É um cadastro à parte do de clientes da agenda: tem gente que recebe
+    presente e nunca pediu coleta, e o contrário. Quando é a mesma pessoa,
+    `cliente_id` liga os dois (só para referência — apagar o cliente não
+    apaga o destinatário).
+    """
+
+    __tablename__ = "lembrancinha_destinatarios"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    # A quem entregar na mão: "Sr. Paulo", "Recepção".
+    contato: Mapped[str | None] = mapped_column(String(120))
+    telefone: Mapped[str | None] = mapped_column(String(40))
+    logradouro: Mapped[str | None] = mapped_column(String(200))
+    numero: Mapped[str | None] = mapped_column(String(20))
+    complemento: Mapped[str | None] = mapped_column(String(100))
+    bairro: Mapped[str | None] = mapped_column(String(100))
+    cidade: Mapped[str | None] = mapped_column(String(100))
+    cep: Mapped[str | None] = mapped_column(String(15))
+    # O que mandar: "Cesta", "Agenda + caneta", "2 vinhos".
+    presente: Mapped[str | None] = mapped_column(String(120))
+    observacao: Mapped[str | None] = mapped_column(Text)
+    cliente_id: Mapped[int | None] = mapped_column(
+        ForeignKey("clientes.id", ondelete="SET NULL"), index=True
+    )
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    entregas: Mapped[list["EntregaLembrancinha"]] = relationship(
+        back_populates="destinatario",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    def entrega_do_ano(self, ano: int) -> "EntregaLembrancinha | None":
+        for entrega in self.entregas:
+            if entrega.ano == ano:
+                return entrega
+        return None
+
+    def situacao_no_ano(self, ano: int) -> SituacaoLembrancinha:
+        entrega = self.entrega_do_ano(ano)
+        if entrega is None:
+            return SituacaoLembrancinha.A_ENTREGAR
+        return SituacaoLembrancinha[entrega.situacao]
+
+    def endereco_resumo(self) -> str:
+        partes: list[str] = []
+        if self.logradouro:
+            partes.append(
+                f"{self.logradouro}, {self.numero}" if self.numero else self.logradouro
+            )
+        for campo in (self.complemento, self.bairro, self.cidade):
+            if campo:
+                partes.append(campo)
+        if self.cep:
+            partes.append(f"CEP {self.cep}")
+        return " - ".join(partes)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<DestinatarioLembrancinha id={self.id} nome={self.nome!r}>"
+
+
+class EntregaLembrancinha(Base):
+    """A lembrancinha de um destinatário num ano. Sem linha = a entregar."""
+
+    __tablename__ = "lembrancinha_entregas"
+    __table_args__ = (
+        UniqueConstraint("destinatario_id", "ano", name="uq_lembrancinha_ano"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    destinatario_id: Mapped[int] = mapped_column(
+        ForeignKey("lembrancinha_destinatarios.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    ano: Mapped[int] = mapped_column(nullable=False, index=True)
+    situacao: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=SituacaoLembrancinha.A_ENTREGAR.name
+    )
+    entregue_em: Mapped[date | None] = mapped_column(Date)
+    atualizado_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    destinatario: Mapped[DestinatarioLembrancinha] = relationship(
+        back_populates="entregas"
+    )
 
 
 class MigracaoAplicada(Base):

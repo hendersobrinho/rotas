@@ -3,6 +3,7 @@
 from app.repository import (
     clientes,
     eventos,
+    lembrancinhas,
     logs,
     recorrencias,
     solicitantes,
@@ -13,6 +14,7 @@ from app.repository import (
 __all__ = [
     "clientes",
     "eventos",
+    "lembrancinhas",
     "logs",
     "recorrencias",
     "solicitantes",

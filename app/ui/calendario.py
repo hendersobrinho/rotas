@@ -20,9 +20,11 @@ from PySide6.QtWidgets import (
 from app.models import Evento, StatusEvento, TipoServico
 from app.ui.datas import DIAS_SEMANA, primeiro_dia_da_grade, titulo_mes
 from app.ui.estilo import (
+    COR_STATUS,
     CORES,
     FONTE_DADOS,
     cores_da_etiqueta,
+    cores_no_calendario,
     glifo_da_etiqueta,
     marcar,
 )
@@ -76,10 +78,18 @@ class CelulaDia(QFrame):
         self._numero.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._numero.setFixedSize(24, 22)
 
+        # Selo no canto: dia que passou com algo sem baixa (âmbar, com a
+        # contagem) ou dia com tudo baixado (✓ verde).
+        self._selo = QLabel()
+        self._selo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._selo.setFixedHeight(18)
+        self._selo.hide()
+
         topo = QHBoxLayout()
         topo.setContentsMargins(0, 0, 0, 0)
         topo.addWidget(self._numero)
         topo.addStretch(1)
+        topo.addWidget(self._selo)
 
         self._etiquetas = [TextoElidido() for _ in range(MAX_ETIQUETAS)]
         self._extra = QLabel()
@@ -104,22 +114,33 @@ class CelulaDia(QFrame):
         self._pintar_numero()
         self._pintar_fundo(False)
 
+        # O que está em aberto vem primeiro: é o que precisa de atenção, e
+        # não pode ficar escondido no "+N" atrás do que já teve baixa.
+        eventos = sorted(
+            eventos, key=lambda e: (e.status is not StatusEvento.PENDENTE,)
+        )
+        abertos = sum(1 for e in eventos if e.status is StatusEvento.PENDENTE)
+        self._pintar_selo(dia, abertos, len(eventos))
+
         visiveis = eventos[:MAX_ETIQUETAS]
         for etiqueta, evento in zip(self._etiquetas, visiveis):
-            cor, fundo = cores_da_etiqueta(evento.tipo_servico.estilo)
+            # Em aberto: cor do tipo de serviço. Baixado: verde com ✓.
+            # Não realizado: vermelho com ✕. Cancelado: cinza riscado.
+            cor, fundo, glifo = cores_no_calendario(evento)
             cancelado = evento.status is StatusEvento.CANCELADO
-            if cancelado:
-                cor, fundo = CORES["tinta_fraca"], CORES["cinza_claro"]
+            aberto = evento.status is StatusEvento.PENDENTE
             etiqueta.setStyleSheet(
                 f"background: {fundo}; color: {cor}; border-radius: 5px;"
-                "padding: 2px 6px; font-size: 11px; font-weight: 500;"
+                "padding: 2px 6px; font-size: 11px;"
+                f"font-weight: {600 if aberto else 500};"
             )
             fonte = etiqueta.font()
             fonte.setStrikeOut(cancelado)
             etiqueta.setFont(fonte)
-            etiqueta.definir_texto(
-                f"{glifo_da_etiqueta(evento.tipo_servico.estilo)}  "
-                f"{evento.cliente.nome_exibicao}"
+            etiqueta.definir_texto(f"{glifo}  {evento.cliente.nome_exibicao}")
+            etiqueta.setToolTip(
+                f"{evento.tipo_servico.nome} · {evento.cliente.nome_exibicao}"
+                f" · {evento.status.value}"
             )
             etiqueta.setVisible(True)
         for etiqueta in self._etiquetas[len(visiveis):]:
@@ -129,10 +150,33 @@ class CelulaDia(QFrame):
         self._extra.setText(f"+{restantes}" if restantes > 0 else "")
         self._extra.setVisible(restantes > 0)
 
+    def _pintar_selo(self, dia: date, abertos: int, total: int) -> None:
+        base = (
+            "border-radius: 9px; padding: 0 6px; font-size: 10px; font-weight: 700;"
+            f'font-family: "{FONTE_DADOS}";'
+        )
+        if abertos and dia < date.today():
+            self._selo.setText(f"● {abertos}")
+            self._selo.setToolTip(f"{abertos} serviço(s) deste dia ainda sem baixa")
+            self._selo.setStyleSheet(
+                f"background: {CORES['laranja_claro']}; color: {CORES['carimbo']};"
+                + base
+            )
+            self._selo.show()
+        elif total and not abertos:
+            self._selo.setText("✓")
+            self._selo.setToolTip("Tudo deste dia já teve baixa")
+            self._selo.setStyleSheet(
+                f"background: {CORES['verde_claro']}; color: {CORES['verde']};" + base
+            )
+            self._selo.show()
+        else:
+            self._selo.hide()
+
     def _pintar_numero(self) -> None:
         if self._hoje:
             estilo = (
-                f"background: {CORES['tinta']}; color: #FFFFFF; border-radius: 11px;"
+                f"background: {CORES['marca']}; color: #FFFFFF; border-radius: 11px;"
             )
         elif self._do_mes:
             estilo = f"background: transparent; color: {CORES['tinta']};"
@@ -197,21 +241,30 @@ class CalendarioMensal(QWidget):
         botao_hoje = QPushButton("Hoje")
         botao_hoje.clicked.connect(self.ir_para_hoje)
 
-        cabecalho = QHBoxLayout()
-        cabecalho.setSpacing(6)
-        cabecalho.addWidget(self._titulo)
-        cabecalho.addSpacing(8)
-        cabecalho.addWidget(anterior)
-        cabecalho.addWidget(proximo)
-        cabecalho.addWidget(botao_hoje)
+        # Primeira linha: o mês, a navegação e as ações; segunda: a legenda
+        # e o resumo, que numa linha só ficavam espremidos.
+        topo = QHBoxLayout()
+        topo.setSpacing(6)
+        topo.addWidget(self._titulo)
+        topo.addSpacing(8)
+        topo.addWidget(anterior)
+        topo.addWidget(proximo)
+        topo.addWidget(botao_hoje)
+        topo.addStretch(1)
         self._acoes = QHBoxLayout()
-        self._acoes.setSpacing(6)
-        cabecalho.addSpacing(6)
-        cabecalho.addLayout(self._acoes)
-        cabecalho.addStretch(1)
-        cabecalho.addWidget(self._legenda())
-        cabecalho.addSpacing(18)
-        cabecalho.addWidget(self._resumo)
+        self._acoes.setSpacing(8)
+        topo.addLayout(self._acoes)
+
+        linha_legenda = QHBoxLayout()
+        linha_legenda.setSpacing(6)
+        linha_legenda.addWidget(self._legenda())
+        linha_legenda.addStretch(1)
+        linha_legenda.addWidget(self._resumo)
+
+        cabecalho = QVBoxLayout()
+        cabecalho.setSpacing(10)
+        cabecalho.addLayout(topo)
+        cabecalho.addLayout(linha_legenda)
 
         folha = QFrame()  # a "folha" branca do mês
         marcar(folha, cartao=True)
@@ -284,6 +337,24 @@ class CalendarioMensal(QWidget):
             etiqueta = QLabel(
                 f'<span style="color:{cor}">{glifo_da_etiqueta(tipo.estilo)}</span>'
                 f"&nbsp;{tipo.nome}"
+            )
+            marcar(etiqueta, papel="fraco")
+            self._legenda_layout.addWidget(etiqueta)
+        # As cores do tipo só valem para o que está em aberto; o resto
+        # aparece com a cor da situação.
+        divisor = QFrame()
+        divisor.setFixedSize(1, 14)
+        divisor.setStyleSheet(f"background: {CORES['pauta_forte']};")
+        self._legenda_layout.addWidget(divisor)
+        for status, texto in (
+            (StatusEvento.CONCLUIDO, "Baixado"),
+            (StatusEvento.NAO_REALIZADO, "Não realizado"),
+        ):
+            cor, fundo = COR_STATUS[status]
+            glifo = "✓" if status is StatusEvento.CONCLUIDO else "✕"
+            etiqueta = QLabel(
+                f'<span style="color:{cor}; background:{fundo};">&nbsp;{glifo}&nbsp;</span>'
+                f"&nbsp;{texto}"
             )
             marcar(etiqueta, papel="fraco")
             self._legenda_layout.addWidget(etiqueta)
@@ -372,7 +443,10 @@ class CalendarioMensal(QWidget):
             self._resumo.setText("Nenhum serviço neste mês")
             return
         pendentes = sum(1 for e in do_mes if e.status is StatusEvento.PENDENTE)
+        baixados = sum(1 for e in do_mes if e.status is StatusEvento.CONCLUIDO)
         texto = f"{len(do_mes)} serviço(s) no mês"
         if pendentes:
-            texto += f" · {pendentes} pendente(s)"
+            texto += f" · {pendentes} em aberto"
+        if baixados:
+            texto += f" · {baixados} baixado(s)"
         self._resumo.setText(texto)

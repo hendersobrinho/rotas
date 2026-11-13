@@ -1,0 +1,6 @@
+Sora (Jonathan Barnbrook, Julián Moncada) e Plus Jakarta Sans (Tokotype)
+são distribuídas sob a SIL Open Font License, versão 1.1:
+https://openfontlicense.org
+
+Podem ser usadas, embarcadas e redistribuídas junto com o programa; não
+podem ser vendidas sozinhas.

@@ -13,6 +13,7 @@ from app.db import init_db, session_scope, url_mascarada
 from app.repository import recorrencias as repo_recorrencias
 from app.repository import tipos_servico as repo_tipos
 from app.ui import marca as marca_visual
+from app.ui.abertura import TelaAbertura
 from app.ui.conexao_dialog import ConexaoDialog
 from app.ui.estilo import aplicar_tema
 from app.ui.login import LoginDialog, entrar_pelo_token
@@ -26,7 +27,7 @@ def _carregar_env() -> None:
     configuracao.carregar_env()
 
 
-def _preparar_banco() -> bool:
+def _preparar_banco(abertura: TelaAbertura) -> bool:
     """Deixa o banco pronto, perguntando onde ele fica quando for preciso.
 
     Na primeira vez neste computador ninguém apontou banco nenhum, e tentar
@@ -38,6 +39,7 @@ def _preparar_banco() -> bool:
     from app import configuracao
 
     if not configuracao.esta_configurado():
+        abertura.hide()
         dialogo = ConexaoDialog(
             None,
             orientacao=(
@@ -49,13 +51,18 @@ def _preparar_banco() -> bool:
         if dialogo.exec() != QDialog.DialogCode.Accepted:
             return False
 
+    def conectar() -> None:
+        init_db()
+        with session_scope() as sessao:
+            repo_tipos.garantir_padrao(sessao)
+
     while True:
         try:
-            init_db()
-            with session_scope() as sessao:
-                repo_tipos.garantir_padrao(sessao)
+            abertura.mostrar("Conectando ao banco de dados…")
+            abertura.esperar(conectar)
             return True
         except Exception as erro:
+            abertura.hide()
             dialogo = ConexaoDialog(
                 None,
                 aviso=(
@@ -67,16 +74,18 @@ def _preparar_banco() -> bool:
                 return False
 
 
-def _entrar() -> bool:
+def _entrar(abertura: TelaAbertura) -> bool:
     """Entra pela sessão salva ou pela tela de login."""
-    usuario = entrar_pelo_token()
+    usuario = abertura.esperar(entrar_pelo_token, "Conferindo a sessão…")
     if usuario is None:
+        abertura.hide()
         dialogo = LoginDialog()
         if dialogo.exec() != QDialog.DialogCode.Accepted:
             return False
         usuario = dialogo.usuario
     sessao_app.definir_usuario(usuario)
-    _abrir_servicos_fixos()
+    abertura.mostrar(f"Olá, {usuario.nome.split()[0]}! Abrindo a agenda…")
+    abertura.esperar(_abrir_servicos_fixos)
     return True
 
 
@@ -95,7 +104,7 @@ def _executar() -> int:
     _carregar_env()
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Agenda do motoboy")
+    app.setApplicationName("Rotas")
     app.setApplicationVersion(__version__)
     app.setOrganizationName("Escritório de Contabilidade")
     # O ícone vale para toda janela do programa — inclusive o login e a tela de
@@ -105,16 +114,23 @@ def _executar() -> int:
     app.setDesktopFileName("rotas")
     aplicar_tema(app)
 
-    if not _preparar_banco():
+    abertura = TelaAbertura()
+    abertura.mostrar("Abrindo…")
+    if not _preparar_banco(abertura):
+        abertura.close()
         return 1
 
     # Sair pelo botão volta para a tela de entrada em vez de fechar o programa.
-    while _entrar():
+    while _entrar(abertura):
+        abertura.mensagem("Montando as telas…")
         janela = MainWindow()
         janela.show()
+        abertura.hide()
         app.exec()
         if not janela.saiu_pelo_logout:
             return 0
+        abertura.mostrar("Até logo…")
+    abertura.close()
     return 0
 
 

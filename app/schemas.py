@@ -226,3 +226,34 @@ class FiltroEventos:
     solicitante_id: int | None = None
     data_inicio: date | None = None
     data_fim: date | None = None
+
+
+@dataclass
+class DadosDestinatario:
+    """Destinatário de lembrancinha — gravado em maiúsculas, como os clientes."""
+
+    nome: str
+    contato: str | None = None
+    telefone: str | None = None
+    logradouro: str | None = None
+    numero: str | None = None
+    complemento: str | None = None
+    bairro: str | None = None
+    cidade: str | None = None
+    cep: str | None = None
+    presente: str | None = None
+    observacao: str | None = None
+    cliente_id: int | None = None
+    ativo: bool = True
+
+    CAMPOS_DE_TEXTO = (
+        "nome", "contato", "telefone", "logradouro", "numero", "complemento",
+        "bairro", "cidade", "cep", "presente", "observacao",
+    )
+
+    def normalizado(self) -> "DadosDestinatario":
+        textos = {campo: maiusculo(getattr(self, campo)) for campo in self.CAMPOS_DE_TEXTO}
+        textos["nome"] = textos["nome"] or ""
+        return DadosDestinatario(
+            **textos, cliente_id=self.cliente_id, ativo=self.ativo
+        )

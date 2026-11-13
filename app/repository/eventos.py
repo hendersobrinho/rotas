@@ -362,3 +362,54 @@ def contagem_por_dia(sessao: Session, inicio: date, fim: date) -> dict[date, int
         .group_by(Evento.data)
     )
     return {dia: int(total) for dia, total in sessao.execute(consulta)}
+
+
+# ------------------------------------------------------------------- baixas
+def listar_sem_baixa(
+    sessao: Session, ate: date, limite: int = 400
+) -> list[Evento]:
+    """Pendentes até a data (inclusive): o que já devia ter sido feito e
+    ninguém confirmou. Os mais antigos primeiro — são os mais esquecidos."""
+    consulta = (
+        _com_remarcacoes(select(Evento))
+        .where(Evento.status == StatusEvento.PENDENTE, Evento.data <= ate)
+        .order_by(Evento.data.asc(), Evento.periodo.asc(), Evento.id.asc())
+        .limit(limite)
+    )
+    return list(sessao.scalars(consulta).unique())
+
+
+def contar_sem_baixa(sessao: Session, antes_de: date) -> int:
+    """Pendentes de dias que já passaram (sem contar o dia `antes_de`)."""
+    consulta = select(func.count(Evento.id)).where(
+        Evento.status == StatusEvento.PENDENTE, Evento.data < antes_de
+    )
+    return int(sessao.scalar(consulta) or 0)
+
+
+def listar_baixados(
+    sessao: Session, desde: date, ate: date, limite: int = 200
+) -> list[Evento]:
+    """Concluídos no intervalo, do mais recente para o mais antigo."""
+    consulta = (
+        _com_remarcacoes(select(Evento))
+        .where(
+            Evento.status == StatusEvento.CONCLUIDO,
+            Evento.data.between(desde, ate),
+        )
+        .order_by(Evento.data.desc(), Evento.id.desc())
+        .limit(limite)
+    )
+    return list(sessao.scalars(consulta).unique())
+
+
+def dar_baixa_em_lote(sessao: Session, ids: list[int]) -> int:
+    """Conclui vários de uma vez; devolve quantos estavam pendentes e mudaram."""
+    mudaram = 0
+    for evento_id in ids:
+        evento = obter_evento(sessao, evento_id)
+        if evento is None or evento.status is not StatusEvento.PENDENTE:
+            continue
+        alterar_status(sessao, evento_id, StatusEvento.CONCLUIDO)
+        mudaram += 1
+    return mudaram

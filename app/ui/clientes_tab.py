@@ -83,7 +83,7 @@ class ClientesTab(QWidget):
         splitter.setSizes([290, 620, 350])
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 10, 18, 18)
+        layout.setContentsMargins(28, 22, 28, 22)
         layout.addWidget(splitter)
 
         self.recarregar()

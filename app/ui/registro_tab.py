@@ -52,7 +52,7 @@ class RegistroTab(QWidget):
         super().__init__(parent)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 10, 18, 18)
+        layout.setContentsMargins(28, 22, 28, 22)
         layout.setSpacing(14)
         layout.addWidget(self._montar_filtros())
         layout.addWidget(self._montar_tabela(), 1)

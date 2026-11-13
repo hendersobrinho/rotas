@@ -30,12 +30,12 @@ from app.ui.estilo import (
     COR_STATUS,
     CORES,
     ROTULO_PERIODO,
-    cores_da_etiqueta,
+    cores_no_calendario,
     marcar,
 )
 from app.ui.evento_dialog import EventoDialog
 from app.ui.mensagens import mostrar_erro
-from app.ui.reagendar import PendenciasDialog, ReagendarDialog
+from app.ui.reagendar import ReagendarDialog
 from app.ui.relatorio_pdf import RelatorioDialog
 from app.ui.widgets import Etiqueta, cartao, rotulo
 
@@ -64,23 +64,24 @@ class LinhaEvento(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._pintar(CORES["papel"])
 
-        cor_servico, _ = cores_da_etiqueta(evento.tipo_servico.estilo)
+        # Só o que está em aberto fica com a cor do tipo de serviço; o que já
+        # teve baixa fica verde, o não realizado vermelho, o cancelado cinza.
+        cor_servico, _fundo, glifo = cores_no_calendario(evento)
         cancelado = evento.status is StatusEvento.CANCELADO
-        if cancelado:
-            cor_servico = CORES["tinta_fraca"]
+        aberto = evento.status is StatusEvento.PENDENTE
 
         faixa = QFrame()
-        faixa.setFixedWidth(3)
+        faixa.setFixedWidth(4)
         faixa.setStyleSheet(f"background: {cor_servico}; border-radius: 2px;")
 
-        servico = QLabel(evento.tipo_servico.nome)
+        servico = QLabel(f"{glifo}  {evento.tipo_servico.nome}")
         servico.setStyleSheet(
-            f"color: {cor_servico}; font-weight: 600; font-size: 13px;"
+            f"color: {cor_servico}; font-weight: 700; font-size: 13px;"
         )
         cliente = QLabel(evento.cliente.nome_exibicao)
         cliente.setStyleSheet(
-            f"color: {CORES['tinta_fraca'] if cancelado else CORES['tinta']};"
-            "font-weight: 600; font-size: 13px;"
+            f"color: {CORES['tinta'] if aberto else CORES['tinta_media']};"
+            "font-weight: 700; font-size: 13px;"
         )
 
         cabecalho = QHBoxLayout()
@@ -144,7 +145,7 @@ class LinhaEvento(QFrame):
             novo = StatusEvento.CONCLUIDO
             estilo = (
                 f"background: {CORES['verde_claro']}; color: {CORES['verde']};"
-                f"border: 1px solid #C6E4D4;"
+                f"border: 1px solid {CORES['verde_borda']};"
             )
             passagem = f"background: {CORES['verde']}; color: #FFFFFF;"
         else:
@@ -209,6 +210,7 @@ class EventosTab(QWidget):
     """Mês inteiro numa página; o dia escolhido na outra."""
 
     dados_alterados = Signal()
+    abrir_baixas = Signal()
 
     PAGINA_MES = 0
     PAGINA_DIA = 1
@@ -224,7 +226,7 @@ class EventosTab(QWidget):
         self.pilha.addWidget(self._montar_dia())
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 10, 18, 18)
+        layout.setContentsMargins(28, 22, 28, 22)
         layout.addWidget(self.pilha)
 
         self.recarregar_clientes()
@@ -237,15 +239,17 @@ class EventosTab(QWidget):
         self.calendario.mes_mudou.connect(self._carregar_periodo)
 
         self.btn_pendencias = QPushButton()
-        marcar(self.btn_pendencias, variante="perigo")
+        marcar(self.btn_pendencias, variante="alerta")
         self.btn_pendencias.setToolTip(
-            "Serviços não realizados que continuam sem remarcação"
+            "Dias que passaram sem baixa e não realizados sem remarcação"
+            " — abre o quadro de Baixas"
         )
-        self.btn_pendencias.clicked.connect(self._abrir_pendencias)
+        self.btn_pendencias.clicked.connect(self.abrir_baixas.emit)
         self.btn_pendencias.setVisible(False)
         self.calendario.adicionar_acao(self.btn_pendencias)
 
         pdf = QPushButton("Emitir PDF")
+        marcar(pdf, variante="marinho")
         pdf.clicked.connect(lambda: self._emitir_pdf(None))
         self.calendario.adicionar_acao(pdf)
 
@@ -447,7 +451,10 @@ class EventosTab(QWidget):
             self._apos_mudanca()
 
     def _emitir_pdf(self, dia: date | None) -> None:
-        RelatorioDialog(self, dia or date.today()).exec()
+        dialogo = RelatorioDialog(self, dia or date.today())
+        dialogo.exec()
+        if dialogo.ver_baixas:
+            self.abrir_baixas.emit()
 
     def _remarcar(self, evento_id: int) -> None:
         try:
@@ -462,22 +469,16 @@ class EventosTab(QWidget):
         if ReagendarDialog(self, evento).exec() == ReagendarDialog.DialogCode.Accepted:
             self._apos_mudanca()
 
-    def _abrir_pendencias(self) -> None:
-        dialogo = PendenciasDialog(self)
-        dialogo.exec()
-        if dialogo.houve_mudanca:
-            self._apos_mudanca()
-        else:
-            self._atualizar_pendencias()
-
     def _atualizar_pendencias(self) -> None:
         """O botão só aparece quando há o que resolver."""
         try:
             with session_scope() as sessao:
-                total = repo_eventos.contar_pendencias(sessao)
+                total = repo_eventos.contar_pendencias(
+                    sessao
+                ) + repo_eventos.contar_sem_baixa(sessao, date.today())
         except Exception:
             total = 0
-        self.btn_pendencias.setText(f"Pendências  {total}")
+        self.btn_pendencias.setText(f"Sem baixa  {total}")
         self.btn_pendencias.setVisible(bool(total))
 
     def _mudar_status(self, evento_id: int, novo: StatusEvento) -> None:

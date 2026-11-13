@@ -8,12 +8,14 @@ from urllib.parse import quote_plus
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QMarginsF, QSizeF, QUrl
+from PySide6.QtCore import QMarginsF, QSizeF, Qt, QUrl
 from PySide6.QtGui import QFont, QPageLayout, QPageSize, QPdfWriter, QTextDocument
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
+    QLabel,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -35,6 +37,7 @@ from app.ui.datas import (
 from app.ui.estilo import (
     COR_STATUS,
     CORES,
+    FONTE_UI,
     ROTULO_PERIODO,
     cores_da_etiqueta,
     glifo_da_etiqueta,
@@ -225,8 +228,8 @@ def _cabecalho(
         for cor, fundo in [cores_da_etiqueta(estilo)]
         for glifo in [glifo_da_etiqueta(estilo)]
     )
-    altura_logo = round(b * (3.0 if empilhado else 3.4))
-    largura_logo = round(altura_logo * 273 / 110)
+    altura_logo = round(b * (2.8 if empilhado else 3.1))
+    largura_logo = round(altura_logo * marca.proporcao())
     fio = max(2, round(ESCALA * 1.2))
     recheio = round(4 * ESCALA)
     logotipo = f'<img src="{URL_LOGO}" width="{largura_logo}" height="{altura_logo}">'
@@ -606,7 +609,7 @@ def gerar_pdf(caminho: str | Path, titulo: str, dias, formato: str) -> Path:
     escritor.setTitle(titulo)
 
     documento = QTextDocument()
-    documento.setDefaultFont(QFont("Inter", round(ajustes["base"] * ESCALA)))
+    documento.setDefaultFont(QFont(FONTE_UI, round(ajustes["base"] * ESCALA)))
     # O logotipo entra como recurso do documento, desenhado no tamanho exato
     # em que vai aparecer — nada é reamostrado na hora de imprimir.
     altura_logo = round(ajustes["base"] * ESCALA * 2.4)
@@ -656,6 +659,8 @@ class RelatorioDialog(QDialog):
         super().__init__(parent)
         self._dia = dia or date.today()
         self.caminho: Path | None = None
+        # A pessoa pediu para ir conferir as baixas em vez de emitir.
+        self.ver_baixas = False
 
         self.setWindowTitle("Emitir PDF")
         self.setMinimumWidth(430)
@@ -680,6 +685,10 @@ class RelatorioDialog(QDialog):
         layout.addWidget(
             rotulo("A lista dos serviços, com cliente, endereço e tipo.", "fraco")
         )
+        aviso = self._aviso_sem_baixa()
+        if aviso is not None:
+            layout.addSpacing(4)
+            layout.addWidget(aviso)
         layout.addSpacing(8)
         linha_abrangencia = QHBoxLayout()
         linha_abrangencia.addWidget(rotulo("O que sai", "campo"))
@@ -717,6 +726,55 @@ class RelatorioDialog(QDialog):
         layout.addLayout(rodape)
 
         self._atualizar_resumo()
+
+    def _aviso_sem_baixa(self) -> QWidget | None:
+        """No caminho de emitir a rota nova: o que ficou para trás sem baixa.
+
+        Não impede de emitir — só lembra, com um atalho para o quadro.
+        """
+        try:
+            with session_scope() as sessao:
+                atrasados = repo_eventos.contar_sem_baixa(sessao, date.today())
+                nao_realizados = repo_eventos.contar_pendencias(sessao)
+        except Exception:
+            return None
+        if not atrasados and not nao_realizados:
+            return None
+        partes = []
+        if atrasados:
+            partes.append(
+                f"<b>{atrasados}</b> serviço(s) de dias anteriores ainda sem baixa"
+            )
+        if nao_realizados:
+            partes.append(f"<b>{nao_realizados}</b> não realizado(s) sem remarcação")
+
+        tarja = QFrame()
+        tarja.setObjectName("tarjaBaixa")
+        tarja.setStyleSheet(
+            f"QFrame#tarjaBaixa {{ background: {CORES['laranja_claro']};"
+            f" border: 1px solid #F6D3A4; border-radius: 10px; }}"
+        )
+        texto = QLabel(
+            f'<span style="color:{CORES["carimbo"]};">●</span>&nbsp; '
+            + " e ".join(partes)
+            + ".<br><span style='font-size:11px;'>Vale conferir antes de "
+            "mandar a rota nova para a rua.</span>"
+        )
+        texto.setWordWrap(True)
+        texto.setStyleSheet(f"color: {CORES['tinta']}; background: transparent;")
+        ver = QPushButton("Ver baixas")
+        marcar(ver, variante="alerta")
+        ver.clicked.connect(self._ir_para_baixas)
+        linha = QHBoxLayout(tarja)
+        linha.setContentsMargins(14, 10, 10, 10)
+        linha.setSpacing(10)
+        linha.addWidget(texto, 1)
+        linha.addWidget(ver, 0, Qt.AlignmentFlag.AlignVCenter)
+        return tarja
+
+    def _ir_para_baixas(self) -> None:
+        self.ver_baixas = True
+        self.reject()
 
     def _trocar_abrangencia(self, valor: Abrangencia) -> None:
         self.calendario.definir_por_semana(valor is Abrangencia.SEMANA)
@@ -767,7 +825,13 @@ class RelatorioDialog(QDialog):
 
 def _abrir_no_sistema(caminho: Path) -> None:
     """Abre o PDF no leitor padrão; se não der, o arquivo continua salvo."""
+    import os
+    import sys
+
     try:
+        if sys.platform.startswith("win"):
+            os.startfile(str(caminho))  # type: ignore[attr-defined]
+            return
         subprocess.Popen(
             ["xdg-open", str(caminho)],
             stdout=subprocess.DEVNULL,

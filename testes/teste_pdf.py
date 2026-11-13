@@ -48,8 +48,9 @@ assert "#203461" in html_tabela, "azul da marca no cabeçalho"
 from app.ui import marca  # noqa: E402
 
 fio = marca.fio_imagem(1000, 6)
-cores = {fio.pixelColor(x, 3).name().upper() for x in (100, 600, 900)}
-assert cores == {"#203461", "#4BBDCD", "#F9B259"}, cores
+# Âmbar 25% · ciano 33% · marinho 42%, nessa ordem.
+cores = [fio.pixelColor(x, 3).name().upper() for x in (100, 400, 900)]
+assert cores == ["#F9B259", "#4BBDCD", "#203461"], cores
 print("ok fio tricolor:", ", ".join(sorted(cores)))
 
 logotipo = marca.imagem(120)

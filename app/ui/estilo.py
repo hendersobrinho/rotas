@@ -1,9 +1,10 @@
-"""Tema claro do aplicativo: paleta, fontes e folha de estilo.
+"""Tema do aplicativo: paleta, fontes e folha de estilo.
 
-Direção visual: papel de agenda de escritório — fundo branco, pautas finas
-em cinza, azul-caneta como acento e laranja-carimbo para as retiradas.
-Inter no texto; JetBrains Mono só nos números e nas etiquetas, para dar o ar
-de agenda sem virar enfeite.
+Direção visual: a identidade do Rotas (rotas-marca/LEIA-ME.md). Moldura em
+marinho, fundo névoa, cartões brancos com bordas finas; o âmbar do pino marca
+o botão principal e o que está pendente; o ciano do traço aparece em foco e
+seleção, nunca como texto. Sora nos títulos e números grandes, Plus Jakarta
+Sans na interface, JetBrains Mono em datas, horários e etiquetas.
 """
 
 from __future__ import annotations
@@ -12,47 +13,57 @@ from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QWidget
 
 from app.models import Periodo, StatusEvento
-
-# Cores da marca (ver app/ui/marca.py) — usadas na moldura do sistema:
-# cabeçalhos, tela de entrada e relatórios. Não entram nos dados, que têm a
-# própria paleta validada.
-from app.ui.marca import (  # noqa: E402
+from app.ui.marca import (
+    ARDOSIA,
     AZUL_MARCA,
     AZUL_MARCA_CLARO,
+    AZUL_TINTA,
     CIANO,
     CIANO_CLARO,
     LARANJA,
     LARANJA_CLARO,
+    LINHA,
+    NEVOA,
 )
 
-FONTE_UI = "Inter"
+FONTE_UI = "Plus Jakarta Sans"
+FONTE_TITULO = "Sora"
 FONTE_DADOS = "JetBrains Mono"
 
 CORES = {
-    "canvas": "#F4F5F7",
+    "canvas": NEVOA,
     "papel": "#FFFFFF",
-    "papel_suave": "#FAFBFC",
-    "pauta": "#E7E9EE",
-    "pauta_forte": "#D6DAE1",
-    "tinta": "#171A20",
-    "tinta_media": "#5C6472",
-    "tinta_fraca": "#98A0AE",
-    "azul": "#2B50C8",
-    "azul_escuro": "#23429F",
-    "azul_claro": "#E9EEFC",
-    "carimbo": "#B4511E",
-    "carimbo_claro": "#FBEDE5",
-    "verde": "#17714B",
-    "verde_claro": "#E6F3EC",
-    "cinza_claro": "#F1F2F5",
+    "papel_suave": "#F9FAFC",
+    "pauta": LINHA,
+    "pauta_forte": "#CED6E4",
+    "tinta": AZUL_TINTA,
+    "tinta_media": ARDOSIA,
+    "tinta_fraca": "#8C96AD",
+    # "azul" é o acento de interação: o marinho da marca.
+    "azul": AZUL_MARCA,
+    "azul_escuro": AZUL_TINTA,
+    "azul_claro": AZUL_MARCA_CLARO,
+    # Âmbar escuro o bastante para ser texto (5,3:1 no branco).
+    "carimbo": "#8A5300",
+    "carimbo_claro": LARANJA_CLARO,
+    "verde": "#15734A",
+    "verde_claro": "#E2F4EA",
+    "verde_borda": "#BFE3CF",
+    "cinza_claro": "#EFF2F7",
     "vermelho": "#B42318",
-    "vermelho_claro": "#FEECEB",
+    "vermelho_claro": "#FDECEA",
     "marca": AZUL_MARCA,
     "marca_clara": AZUL_MARCA_CLARO,
     "ciano": CIANO,
     "ciano_claro": CIANO_CLARO,
     "laranja": LARANJA,
+    "laranja_hover": "#F4A23E",
     "laranja_claro": LARANJA_CLARO,
+    # Barra lateral
+    "lateral": AZUL_MARCA,
+    "lateral_texto": "#B9C4DE",
+    "lateral_hover": "#2A4174",
+    "lateral_ativo": "#30497F",
 }
 
 # Paleta oferecida no cadastro de tipos de serviço.
@@ -100,11 +111,31 @@ def nome_da_etiqueta(estilo: str | None) -> str:
 
 
 COR_STATUS = {
-    StatusEvento.PENDENTE: (CORES["tinta_media"], CORES["cinza_claro"]),
+    StatusEvento.PENDENTE: (CORES["carimbo"], CORES["carimbo_claro"]),
     StatusEvento.CONCLUIDO: (CORES["verde"], CORES["verde_claro"]),
     StatusEvento.NAO_REALIZADO: (CORES["vermelho"], CORES["vermelho_claro"]),
     StatusEvento.CANCELADO: (CORES["tinta_fraca"], CORES["cinza_claro"]),
 }
+
+# Como cada situação aparece no calendário e na folha do dia. Só o que está
+# em aberto fica com a cor do tipo de serviço; o resto ganha a cor da
+# situação e um sinal, para bater o olho e saber o que já teve baixa.
+GLIFO_STATUS = {
+    StatusEvento.CONCLUIDO: "✓",
+    StatusEvento.NAO_REALIZADO: "✕",
+    StatusEvento.CANCELADO: "–",
+}
+
+
+def cores_no_calendario(evento) -> tuple[str, str, str]:
+    """(texto, fundo, glifo) de um serviço no calendário e na folha do dia."""
+    status = evento.status
+    if status is StatusEvento.PENDENTE:
+        cor, fundo = cores_da_etiqueta(evento.tipo_servico.estilo)
+        return cor, fundo, glifo_da_etiqueta(evento.tipo_servico.estilo)
+    cor, fundo = COR_STATUS[status]
+    return cor, fundo, GLIFO_STATUS[status]
+
 
 ROTULO_PERIODO = {Periodo.MANHA: "MANHÃ", Periodo.TARDE: "TARDE"}
 
@@ -134,6 +165,7 @@ def _palette_clara() -> QPalette:
     p.setColor(QPalette.ColorRole.ToolTipBase, QColor(CORES["tinta"]))
     p.setColor(QPalette.ColorRole.ToolTipText, QColor("#FFFFFF"))
     p.setColor(QPalette.ColorRole.PlaceholderText, QColor(CORES["tinta_fraca"]))
+    p.setColor(QPalette.ColorRole.Link, QColor(CORES["azul"]))
     for grupo in (QPalette.ColorGroup.Disabled,):
         p.setColor(grupo, QPalette.ColorRole.Text, QColor(CORES["tinta_fraca"]))
         p.setColor(grupo, QPalette.ColorRole.ButtonText, QColor(CORES["tinta_fraca"]))
@@ -145,6 +177,7 @@ QSS = """
 QWidget {{
     font-family: "{ui}";
     font-size: 13px;
+    font-weight: 500;
     color: {tinta};
 }}
 QMainWindow, QDialog {{ background: {canvas}; }}
@@ -156,6 +189,46 @@ QToolTip {{
     padding: 5px 8px;
 }}
 
+/* ------------------------------------------------------ barra lateral */
+QFrame#barraLateral {{ background: {lateral}; border: none; }}
+QFrame#barraLateral QLabel {{ color: {lateral_texto}; background: transparent; }}
+QFrame#barraLateral QLabel[papel="lateral_secao"] {{
+    font-family: "{dados}";
+    font-size: 10px;
+    font-weight: 600;
+    color: #7F8FB6;
+    padding-left: 14px;
+}}
+QFrame#barraLateral QLabel[papel="lateral_nome"] {{
+    color: #FFFFFF;
+    font-weight: 600;
+}}
+QPushButton[nav="true"] {{
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    padding: 9px 12px;
+    text-align: left;
+    color: {lateral_texto};
+    font-size: 13px;
+    font-weight: 600;
+}}
+QPushButton[nav="true"]:hover {{ background: {lateral_hover}; color: #FFFFFF; }}
+QPushButton[nav="true"]:checked {{ background: {lateral_ativo}; color: #FFFFFF; }}
+QPushButton[variante="lateral"] {{
+    background: transparent;
+    border: 1px solid #3A5287;
+    border-radius: 8px;
+    padding: 6px 12px;
+    color: {lateral_texto};
+    font-weight: 600;
+}}
+QPushButton[variante="lateral"]:hover {{
+    background: {lateral_hover};
+    border-color: {ciano};
+    color: #FFFFFF;
+}}
+
 /* ---------------------------------------------------------------- abas */
 QTabWidget::pane {{ border: none; background: {canvas}; }}
 QTabBar::tab {{
@@ -164,7 +237,7 @@ QTabBar::tab {{
     padding: 8px 18px;
     margin-right: 4px;
     border-radius: 8px;
-    font-weight: 500;
+    font-weight: 600;
 }}
 QTabBar::tab:selected {{ background: {papel}; color: {tinta}; }}
 QTabBar::tab:hover:!selected {{ color: {tinta}; }}
@@ -173,18 +246,28 @@ QTabBar::tab:hover:!selected {{ color: {tinta}; }}
 QFrame[cartao="true"] {{
     background: {papel};
     border: 1px solid {pauta};
-    border-radius: 12px;
+    border-radius: 14px;
 }}
 QFrame[cartao="plano"] {{
     background: {papel};
     border: 1px solid {pauta};
-    border-radius: 10px;
+    border-radius: 12px;
 }}
 QFrame[separador="true"] {{ background: {pauta}; border: none; }}
 
 /* -------------------------------------------------------------- textos */
-QLabel[papel="titulo"] {{ font-size: 19px; font-weight: 600; color: {tinta}; }}
-QLabel[papel="secao"] {{ font-size: 14px; font-weight: 600; color: {tinta}; }}
+QLabel[papel="titulo"] {{
+    font-family: "{titulo}";
+    font-size: 21px;
+    font-weight: 700;
+    color: {tinta};
+}}
+QLabel[papel="secao"] {{
+    font-family: "{titulo}";
+    font-size: 14px;
+    font-weight: 700;
+    color: {tinta};
+}}
 QLabel[papel="etiqueta"] {{
     font-family: "{dados}";
     font-size: 10px;
@@ -192,24 +275,30 @@ QLabel[papel="etiqueta"] {{
     color: {tinta_fraca};
 }}
 QLabel[papel="apoio"] {{ color: {tinta_media}; }}
-QLabel[papel="fraco"] {{ color: {tinta_fraca}; font-size: 12px; }}
-QLabel[papel="campo"] {{ color: {tinta_media}; font-size: 12px; font-weight: 500; }}
+QLabel[papel="fraco"] {{ color: {tinta_media}; font-size: 12px; }}
+QLabel[papel="campo"] {{ color: {tinta_media}; font-size: 12px; font-weight: 600; }}
 QLabel[papel="numero"] {{ font-family: "{dados}"; font-size: 13px; color: {tinta_media}; }}
+QLabel[papel="grande"] {{
+    font-family: "{titulo}";
+    font-size: 28px;
+    font-weight: 800;
+    color: {tinta};
+}}
 
 /* -------------------------------------------------------------- campos */
 QLineEdit, QPlainTextEdit, QTextEdit, QComboBox, QDateEdit, QSpinBox {{
     background: {papel};
     border: 1px solid {pauta_forte};
-    border-radius: 8px;
+    border-radius: 9px;
     padding: 6px 10px;
-    selection-background-color: {azul_claro};
+    selection-background-color: {ciano_claro};
     selection-color: {tinta};
 }}
-QLineEdit:hover, QComboBox:hover, QDateEdit:hover, QPlainTextEdit:hover {{
+QLineEdit:hover, QComboBox:hover, QDateEdit:hover, QPlainTextEdit:hover, QSpinBox:hover {{
     border-color: {tinta_fraca};
 }}
-QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QDateEdit:focus {{
-    border-color: {azul};
+QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QDateEdit:focus, QSpinBox:focus {{
+    border: 1px solid {ciano};
 }}
 QLineEdit:disabled, QPlainTextEdit:disabled, QComboBox:disabled, QDateEdit:disabled {{
     background: {papel_suave};
@@ -227,14 +316,28 @@ QComboBox QAbstractItemView {{
     selection-color: {tinta};
     outline: none;
 }}
+QCheckBox {{ spacing: 8px; color: {tinta}; }}
+QCheckBox::indicator {{
+    width: 16px;
+    height: 16px;
+    border: 1px solid {pauta_forte};
+    border-radius: 5px;
+    background: {papel};
+}}
+QCheckBox::indicator:hover {{ border-color: {ciano}; }}
+QCheckBox::indicator:checked {{
+    background: {marca};
+    border-color: {marca};
+    image: none;
+}}
 
 /* -------------------------------------------------------------- botões */
 QPushButton {{
     background: {papel};
     border: 1px solid {pauta_forte};
-    border-radius: 8px;
+    border-radius: 9px;
     padding: 7px 14px;
-    font-weight: 500;
+    font-weight: 600;
     color: {tinta};
 }}
 QPushButton:hover {{ background: {papel_suave}; border-color: {tinta_fraca}; }}
@@ -244,23 +347,52 @@ QPushButton:disabled {{
     color: {tinta_fraca};
     border-color: {pauta};
 }}
+/* O botão principal é âmbar, com texto em tinta — como manda a marca. */
 QPushButton[variante="primario"] {{
-    background: {azul};
-    border-color: {azul};
-    color: #FFFFFF;
-    font-weight: 600;
+    background: {laranja};
+    border-color: {laranja};
+    color: {tinta};
+    font-weight: 700;
 }}
-QPushButton[variante="primario"]:hover {{ background: {azul_escuro}; border-color: {azul_escuro}; }}
+QPushButton[variante="primario"]:hover {{
+    background: {laranja_hover};
+    border-color: {laranja_hover};
+}}
 QPushButton[variante="primario"]:disabled {{
-    background: #B3C0E9;
-    border-color: #B3C0E9;
-    color: #F3F6FD;
+    background: #FBE0BC;
+    border-color: #FBE0BC;
+    color: #A89A86;
+}}
+QPushButton[variante="marinho"] {{
+    background: {marca};
+    border-color: {marca};
+    color: #FFFFFF;
+    font-weight: 700;
+}}
+QPushButton[variante="marinho"]:hover {{ background: {tinta}; border-color: {tinta}; }}
+QPushButton[variante="sucesso"] {{
+    background: {verde_claro};
+    border-color: {verde_borda};
+    color: {verde};
+    font-weight: 700;
+}}
+QPushButton[variante="sucesso"]:hover {{
+    background: {verde};
+    border-color: {verde};
+    color: #FFFFFF;
 }}
 QPushButton[variante="perigo"] {{ color: {vermelho}; }}
 QPushButton[variante="perigo"]:hover {{
     background: {vermelho_claro};
     border-color: {vermelho};
 }}
+QPushButton[variante="alerta"] {{
+    background: {carimbo_claro};
+    border-color: #F6D3A4;
+    color: {carimbo};
+    font-weight: 700;
+}}
+QPushButton[variante="alerta"]:hover {{ background: {laranja}; border-color: {laranja}; color: {tinta}; }}
 QPushButton[variante="fantasma"] {{
     background: transparent;
     border: 1px solid transparent;
@@ -272,13 +404,13 @@ QPushButton[variante="fantasma"]:hover {{ background: {cinza_claro}; color: {tin
 QPushButton[variante="campo"] {{
     background: {papel};
     border: 1px solid {pauta_forte};
-    border-radius: 8px;
+    border-radius: 9px;
     padding: 7px 12px;
     text-align: left;
     font-weight: 500;
     color: {tinta};
 }}
-QPushButton[variante="campo"]:hover {{ border-color: {azul}; }}
+QPushButton[variante="campo"]:hover {{ border-color: {ciano}; }}
 QPushButton[variante="campo"]:disabled {{
     background: {papel_suave};
     color: {tinta_fraca};
@@ -290,14 +422,14 @@ QPushButton[variante="segmento"] {{
     border-radius: 7px;
     padding: 6px 14px;
     color: {tinta_media};
-    font-weight: 500;
+    font-weight: 600;
 }}
 QPushButton[variante="segmento"]:hover {{ color: {tinta}; }}
 QPushButton[variante="segmento"]:checked {{
     background: {papel};
     border-color: {pauta_forte};
     color: {tinta};
-    font-weight: 600;
+    font-weight: 700;
 }}
 QPushButton[variante="segmento"]:disabled {{
     background: transparent;
@@ -308,7 +440,7 @@ QPushButton[variante="segmento"]:checked:disabled {{
     background: {papel};
     border-color: {pauta};
     color: {tinta_media};
-    font-weight: 600;
+    font-weight: 700;
 }}
 /* Campo só de leitura: sem moldura de digitação, texto ainda selecionável. */
 QLineEdit[leitura="true"], QPlainTextEdit[leitura="true"] {{
@@ -319,7 +451,7 @@ QLineEdit[leitura="true"], QPlainTextEdit[leitura="true"] {{
 QFrame[grupo="segmentado"] {{
     background: {cinza_claro};
     border: 1px solid {pauta};
-    border-radius: 9px;
+    border-radius: 10px;
 }}
 
 /* ------------------------------------------------------------- tabelas */
@@ -333,21 +465,33 @@ QTableWidget, QTableView {{
    linhas que as telas pintam (vermelho para o que tem problema, cinza para o
    que está desligado) sairiam todas pretas. O padrão vem da paleta, que já
    usa a mesma tinta. */
-QTableWidget::item {{ padding: 7px 8px; }}
+QTableWidget::item {{ padding: 7px 8px; border-bottom: 1px solid {cinza_claro}; }}
 QTableWidget::item:selected {{ background: {azul_claro}; color: {tinta}; }}
 QHeaderView::section {{
     background: {papel};
     color: {tinta_fraca};
     border: none;
     border-bottom: 1px solid {pauta};
-    padding: 8px;
+    padding: 9px 8px;
     font-family: "{dados}";
     font-size: 10px;
     font-weight: 600;
 }}
 
+/* --------------------------------------------------- barra de progresso */
+QProgressBar {{
+    background: {cinza_claro};
+    border: none;
+    border-radius: 4px;
+    height: 8px;
+    text-align: center;
+    color: transparent;
+}}
+QProgressBar::chunk {{ background: {verde}; border-radius: 4px; }}
+
 /* ------------------------------------------------- rolagem e divisores */
 QScrollArea {{ background: transparent; border: none; }}
+QScrollArea > QWidget > QWidget {{ background: transparent; }}
 QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
 QScrollBar::handle:vertical {{
     background: {pauta_forte};
@@ -364,8 +508,14 @@ QScrollBar::handle:horizontal {{
 QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 QSplitter::handle {{ background: transparent; }}
-QStatusBar {{ background: {canvas}; color: {tinta_fraca}; }}
+QStatusBar {{
+    background: {papel};
+    color: {tinta_fraca};
+    border-top: 1px solid {pauta};
+    font-size: 11px;
+}}
 QStatusBar::item {{ border: none; }}
+QMessageBox {{ background: {papel}; }}
 """
 
 
@@ -389,11 +539,18 @@ def carregar_fontes() -> list[str]:
     return sorted(set(familias))
 
 
+def folha_de_estilo() -> str:
+    return QSS.format(ui=FONTE_UI, titulo=FONTE_TITULO, dados=FONTE_DADOS, **CORES)
+
+
 def aplicar_tema(app: QApplication) -> None:
     """Deixa o app sempre claro, independente do tema do sistema."""
+    from PySide6.QtGui import QFont
+
     carregar_fontes()
     app.setStyle("Fusion")
     app.setPalette(_palette_clara())
-    app.setStyleSheet(
-        QSS.format(ui=FONTE_UI, dados=FONTE_DADOS, **CORES)
-    )
+    fonte = QFont(FONTE_UI, 10)
+    fonte.setWeight(QFont.Weight.Medium)
+    app.setFont(fonte)
+    app.setStyleSheet(folha_de_estilo())

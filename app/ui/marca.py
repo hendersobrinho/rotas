@@ -1,8 +1,8 @@
-"""A marca do escritório: cores e desenho do logotipo.
+"""A marca do Rotas: cores, logotipo e ícone.
 
-O arquivo vetorial vive em `app/recursos/`. Para a tela, ele vira QPixmap no
-tamanho pedido; para o PDF, vira uma imagem em resolução alta, registrada como
-recurso do documento.
+Os arquivos vetoriais vêm da pasta da marca (`rotas-marca/`) e vivem em
+`app/recursos/marca/`. Para a tela, viram QPixmap no tamanho pedido; para o
+PDF, viram uma imagem em resolução alta, registrada como recurso do documento.
 """
 
 from __future__ import annotations
@@ -12,31 +12,51 @@ from pathlib import Path
 
 from app import caminhos
 from PySide6.QtCore import QRectF, QSize, Qt
-from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
+from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QWidget
 
-LOGO = caminhos.recurso("logo.svg")      # símbolo + palavra + seta
-SIMBOLO = caminhos.recurso("marca.svg")  # só o símbolo
-ICONE = caminhos.recurso("icone.svg")    # o motoboy, ícone do programa
+# O logotipo "claro" é o que vai em fundo claro (PDF, diálogos); o "escuro",
+# no fundo marinho (barra lateral, tela de entrada). "Assinado" traz a linha
+# de assinatura embaixo da palavra.
+LOGO = caminhos.recurso("marca", "rotas-logo-claro-sem-assinatura.svg")
+LOGO_ASSINADO = caminhos.recurso("marca", "rotas-logo-claro.svg")
+LOGO_ESCURO = caminhos.recurso("marca", "rotas-logo-escuro-sem-assinatura.svg")
+LOGO_ESCURO_ASSINADO = caminhos.recurso("marca", "rotas-logo-escuro.svg")
+SIMBOLO = caminhos.recurso("marca", "rotas-simbolo-claro.svg")
+SIMBOLO_ESCURO = caminhos.recurso("marca", "rotas-simbolo-escuro.svg")
+ICONE = caminhos.recurso("icone.svg")  # o R com o pino, no quadrado marinho
 
-# As cores saem do próprio logotipo.
-AZUL_MARCA = "#203461"
-AZUL_TINTA = "#1C2066"
-CIANO = "#4BBDCD"
-LARANJA = "#F9B259"
-CIANO_CLARO = "#E8F6F8"
+# Cores da marca (ver rotas-marca/LEIA-ME.md).
+AZUL_MARCA = "#203461"   # Marinho Métodos: base, textos, fundo do ícone
+AZUL_TINTA = "#16244A"   # Tinta: títulos fortes, texto sobre âmbar
+CIANO = "#4BBDCD"        # Ciano Rota: o traço; destaque e seleção, nunca texto
+LARANJA = "#F9B259"      # Âmbar Destino: pino, botão principal, pendente
+ARDOSIA = "#5B6782"      # texto secundário
+NEVOA = "#F4F6FA"        # fundo da janela
+LINHA = "#E1E6F0"        # bordas
+CIANO_CLARO = "#E6F6F8"
 AZUL_MARCA_CLARO = "#E8ECF5"
 LARANJA_CLARO = "#FEF1DF"
 
+# Faixa tricolor: âmbar 25% · ciano 33% · marinho 42%.
+CORES_FAIXA = (LARANJA, CIANO, AZUL_MARCA)
+PROPORCOES_FAIXA = (25, 33, 42)
 
-def _caminho(simbolo: bool) -> Path:
-    return SIMBOLO if simbolo else LOGO
+
+def _caminho(simbolo: bool, escuro: bool = False, assinado: bool = False) -> Path:
+    if simbolo:
+        return SIMBOLO_ESCURO if escuro else SIMBOLO
+    if escuro:
+        return LOGO_ESCURO_ASSINADO if assinado else LOGO_ESCURO
+    return LOGO_ASSINADO if assinado else LOGO
 
 
-def imagem(altura: int, simbolo: bool = False) -> QImage:
+def imagem(
+    altura: int, simbolo: bool = False, escuro: bool = False, assinado: bool = False
+) -> QImage:
     """Desenha o logotipo com a altura pedida, mantendo a proporção."""
-    renderizador = QSvgRenderer(str(_caminho(simbolo)))
+    renderizador = QSvgRenderer(str(_caminho(simbolo, escuro, assinado)))
     tamanho = renderizador.defaultSize()
     largura = max(1, round(altura * tamanho.width() / tamanho.height()))
 
@@ -49,14 +69,20 @@ def imagem(altura: int, simbolo: bool = False) -> QImage:
     return quadro
 
 
-def imagem_icone(lado: int) -> QImage:
-    """O ícone do programa no maior tamanho que couber num quadrado de `lado`.
+@lru_cache(maxsize=8)
+def proporcao(
+    simbolo: bool = False, escuro: bool = False, assinado: bool = False
+) -> float:
+    """Largura ÷ altura do desenho — para reservar o espaço certo no PDF."""
+    tamanho = QSvgRenderer(str(_caminho(simbolo, escuro, assinado))).defaultSize()
+    return tamanho.width() / max(1, tamanho.height())
 
-    O desenho é deitado e o espaço que o sistema reserva para um ícone é
-    quadrado, então ele entra centralizado, esticado até encostar nas laterais
-    — mantendo a proporção, que distorcer para preencher ficaria torto. Desenha
-    grande e reduz com suavização: nos tamanhos pequenos os traços finos do
-    contorno somem se forem desenhados direto.
+
+def imagem_icone(lado: int) -> QImage:
+    """O ícone do programa num quadrado de `lado`.
+
+    Desenha grande e reduz com suavização: nos tamanhos pequenos os traços
+    ficam mais limpos do que desenhados direto.
     """
     renderizador = QSvgRenderer(str(ICONE))
     tamanho = renderizador.defaultSize()
@@ -85,17 +111,34 @@ def imagem_icone(lado: int) -> QImage:
     )
 
 
+def _escala_da_tela() -> float:
+    from PySide6.QtGui import QGuiApplication
+
+    if QGuiApplication.instance() is None:
+        return 1.0
+    tela = QGuiApplication.primaryScreen()
+    return max(1.0, tela.devicePixelRatio()) if tela is not None else 1.0
+
+
 @lru_cache(maxsize=16)
-def pixmap(altura: int, simbolo: bool = False) -> QPixmap:
-    return QPixmap.fromImage(imagem(altura, simbolo))
+def pixmap(
+    altura: int, simbolo: bool = False, escuro: bool = False, assinado: bool = False
+) -> QPixmap:
+    """O logotipo para a tela, nítido também em monitor de alta densidade."""
+    escala = _escala_da_tela()
+    quadro = QPixmap.fromImage(
+        imagem(round(altura * escala), simbolo, escuro, assinado)
+    )
+    quadro.setDevicePixelRatio(escala)
+    return quadro
 
 
 @lru_cache(maxsize=1)
 def icone() -> QIcon:
     """Ícone do programa, nos tamanhos que os ambientes costumam pedir.
 
-    É o mesmo desenho do atalho da área de trabalho — ver
-    `scripts/gerar_icones.py`, que gera o .ico do Windows e os PNGs do Linux.
+    É o mesmo desenho do atalho da área de trabalho e do .ico do executável
+    (`app/recursos/rotas.ico`, que vem pronto da pasta da marca).
     """
     icone_marca = QIcon()
     for lado in (16, 24, 32, 48, 64, 128, 256, 512):
@@ -104,16 +147,14 @@ def icone() -> QIcon:
 
 
 def fio_imagem(largura: int, altura: int,
-               proporcoes: tuple[int, int, int] = (5, 3, 2)) -> QImage:
-    """O fio tricolor como imagem, para quando o layout não estica sozinho."""
-    from PySide6.QtGui import QColor
-
+               proporcoes: tuple[int, int, int] = PROPORCOES_FAIXA) -> QImage:
+    """A faixa tricolor como imagem, para quando o layout não estica sozinho."""
     quadro = QImage(QSize(max(1, largura), max(1, altura)),
                     QImage.Format.Format_RGB32)
     pintor = QPainter(quadro)
     total = sum(proporcoes)
     x = 0
-    for indice, (cor, peso) in enumerate(zip((AZUL_MARCA, CIANO, LARANJA), proporcoes)):
+    for indice, cor in enumerate(CORES_FAIXA):
         fim = largura if indice == len(proporcoes) - 1 else round(largura * sum(
             proporcoes[: indice + 1]) / total)
         pintor.fillRect(x, 0, fim - x, altura, QColor(cor))
@@ -122,16 +163,16 @@ def fio_imagem(largura: int, altura: int,
     return quadro
 
 
-def faixa(altura: int = 3, proporcoes: tuple[int, int, int] = (5, 3, 2)) -> QWidget:
-    """Fio de três cores da marca — azul, ciano e laranja, nessa ordem."""
-
+def faixa(altura: int = 3,
+          proporcoes: tuple[int, int, int] = PROPORCOES_FAIXA) -> QWidget:
+    """A faixa de três cores da marca: âmbar, ciano e marinho, nessa ordem."""
     caixa = QWidget()
     caixa.setFixedHeight(altura)
     layout = QHBoxLayout(caixa)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
-    for cor, peso in zip((AZUL_MARCA, CIANO, LARANJA), proporcoes):
+    for cor, peso in zip(CORES_FAIXA, proporcoes):
         pedaco = QFrame()
-        pedaco.setStyleSheet(f"background: {cor};")
+        pedaco.setStyleSheet(f"background: {cor}; border: none;")
         layout.addWidget(pedaco, peso)
     return caixa
