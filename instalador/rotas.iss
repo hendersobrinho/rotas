@@ -7,7 +7,7 @@
 
 ; A versão tem de bater com app/__init__.py — é de lá que sai a que aparece na
 ; janela e nas propriedades do Rotas.exe. Ao subir a versão, mude nos dois.
-#define Versao "1.4.0"
+#define Versao "1.4.1"
 #define Nome "Agenda do motoboy"
 ; Como o atalho se chama no menu e na área de trabalho — curto, que é o que
 ; cabe embaixo de um ícone sem virar reticências.
@@ -41,7 +41,7 @@ OutputBaseFilename=rotas-instalador-{#Versao}
 ; O ícone da marca (rotas-marca/icone/rotas.ico), o mesmo do programa.
 SetupIconFile=icone.ico
 ; Já este é o do programa, que é o que aparece em "Aplicativos instalados".
-UninstallDisplayIcon={app}\{#Executavel}
+UninstallDisplayIcon={app}\rotas-{#Versao}.ico
 UninstallDisplayName={#Nome}
 Compression=lzma2
 SolidCompression=yes
@@ -53,6 +53,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ; falhar copiando um arquivo em uso.
 CloseApplications=yes
 RestartApplications=no
+; No fim, avisa o Windows para redesenhar os ícones (ver [Icons]).
+ChangesAssociations=yes
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
@@ -61,19 +63,33 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "atalhodesktop"; Description: "Criar atalho na área de trabalho"; \
     GroupDescription: "Atalhos:"
 
+[InstallDelete]
+; O ícone da versão anterior (ver [Files]).
+Type: files; Name: "{app}\rotas-*.ico"
+
 [Files]
 ; A pasta inteira que o PyInstaller gerou.
 Source: "{#Origem}\*"; DestDir: "{app}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
+; O ícone dos atalhos, com a versão no nome. O Windows guarda o desenho do
+; atalho pelo caminho do arquivo e não relê quando o Rotas.exe é trocado:
+; atualizando por cima, o ícone antigo ficava. Com um nome novo a cada versão,
+; o atalho aponta para um arquivo que o cache nunca viu.
+Source: "icone.ico"; DestDir: "{app}"; DestName: "rotas-{#Versao}.ico"; \
+    Flags: ignoreversion
 
 [Icons]
 ; Os atalhos levam o nome curto e o ícone do próprio programa.
 Name: "{group}\{#NomeAtalho}"; Filename: "{app}\{#Executavel}"; \
-    Comment: "{#Nome}"
+    IconFilename: "{app}\rotas-{#Versao}.ico"; Comment: "{#Nome}"
 Name: "{autodesktop}\{#NomeAtalho}"; Filename: "{app}\{#Executavel}"; \
-    Comment: "{#Nome}"; Tasks: atalhodesktop
+    IconFilename: "{app}\rotas-{#Versao}.ico"; Comment: "{#Nome}"; \
+    Tasks: atalhodesktop
 
 [Run]
+; Renova o cache de ícones do Windows, para o atalho mostrar o desenho novo.
+Filename: "{sys}\ie4uinit.exe"; Parameters: "-show"; \
+    Flags: runhidden waituntilterminated skipifdoesntexist
 ; Instalação normal: a pessoa escolhe se abre no fim.
 Filename: "{app}\{#Executavel}"; Description: "Abrir agora"; \
     Flags: nowait postinstall skipifsilent
