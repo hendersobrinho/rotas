@@ -141,4 +141,79 @@ assert dialogo.campo_endereco.count() == 3, dialogo.campo_endereco.count()
 textos = [dialogo.campo_endereco.itemText(i) for i in range(3)]
 assert any("QUIOSQUE" in t for t in textos), textos
 print("ok marcação oferece os três:", " | ".join(t.split(" — ")[0] for t in textos))
+# ---- endereço das lembrancinhas ------------------------------------------
+from datetime import date  # noqa: E402
+
+from app.repository import lembrancinhas as repo_lembrancinhas  # noqa: E402
+from app.ui.clientes_tab import ClientesTab  # noqa: E402
+
+
+def destinatarios_de(cid):
+    with session_scope() as sessao:
+        return [(d.bairro, d.ativo) for d in repo_lembrancinhas.listar(sessao)
+                if d.cliente_id == cid]
+
+
+def dados_com_marca(sessao, cid, marcar_rotulo):
+    atual = repo_clientes.obter_cliente(sessao, cid)
+    return DadosCliente(
+        tipo=atual.tipo, nome=atual.nome, apelido=atual.apelido,
+        enderecos=[
+            DadosEndereco(e.tipo, id=e.id, rotulo=e.rotulo, logradouro=e.logradouro,
+                          numero=e.numero, bairro=e.bairro, cidade=e.cidade,
+                          lembrancinha=(e.rotulo == marcar_rotulo))
+            for e in atual.enderecos
+        ])
+
+
+with session_scope() as sessao:
+    marcado = repo_clientes.criar_cliente(sessao, DadosCliente(
+        tipo=TipoCliente.PJ, nome="Escritório Presente LTDA",
+        enderecos=[
+            DadosEndereco(TipoEndereco.COMERCIAL, rotulo="Sede", logradouro="Rua X",
+                          numero="1", bairro="Centro", cidade="BH", lembrancinha=True),
+            DadosEndereco(TipoEndereco.RESIDENCIAL, rotulo="Casa do sócio",
+                          logradouro="Rua Y", numero="2", bairro="Prado", cidade="BH"),
+        ]))
+    marcado_id = marcado.id
+assert destinatarios_de(marcado_id) == [("CENTRO", True)], destinatarios_de(marcado_id)
+print("ok endereço marcado põe o cliente na lista de lembrancinhas")
+
+with session_scope() as sessao:
+    repo_clientes.atualizar_cliente(
+        sessao, marcado_id, dados_com_marca(sessao, marcado_id, "CASA DO SÓCIO"))
+assert destinatarios_de(marcado_id) == [("PRADO", True)], destinatarios_de(marcado_id)
+with session_scope() as sessao:
+    repo_clientes.atualizar_cliente(
+        sessao, marcado_id, dados_com_marca(sessao, marcado_id, None))
+assert destinatarios_de(marcado_id) == [("PRADO", False)], destinatarios_de(marcado_id)
+with session_scope() as sessao:
+    dois = dados_com_marca(sessao, marcado_id, None)
+    for e in dois.enderecos:
+        e.lembrancinha = True
+    try:
+        repo_clientes.atualizar_cliente(sessao, marcado_id, dois)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("dois endereços de lembrancinha aceitos")
+print("ok trocar o endereço atualiza; desmarcar tira da lista; só um por cliente")
+
+with session_scope() as sessao:
+    repo_clientes.atualizar_cliente(
+        sessao, marcado_id, dados_com_marca(sessao, marcado_id, "SEDE"))
+aba = janela.aba_clientes
+aba.recarregar()
+aba._abrir(marcado_id)
+assert aba._lembrancinhas.get(marcado_id) is not None, "selo na ficha"
+nomes = [aba.tabela.item(l, 0).text() for l in range(aba.tabela.rowCount())]
+assert any("🎁" in n and "PRESENTE" in n for n in nomes), nomes
+aba._editar()
+formularios = aba._formularios_endereco()
+assert [f.lembrancinha.isChecked() for f in formularios] == [True, False]
+formularios[1].lembrancinha.setChecked(True)
+assert [f.lembrancinha.isChecked() for f in formularios] == [False, True], "um só"
+aba._descartar()
+assert aba.pilha.currentIndex() == ClientesTab.PAGINA_FICHA
+print("ok lista e ficha mostram o 🎁; no cadastro, marcar um desmarca o outro")
 print("TESTE ENDERECOS OK")

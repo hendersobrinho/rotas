@@ -160,8 +160,19 @@ def _clientes_em_maiusculas(sessao: Session) -> None:
                 )
 
 
+def _endereco_da_lembrancinha(sessao: Session) -> None:
+    """Coluna que marca o endereço das lembrancinhas (bancos criados antes dela)."""
+    from sqlalchemy import text
+
+    sessao.execute(text(
+        "ALTER TABLE enderecos ADD COLUMN IF NOT EXISTS"
+        " lembrancinha BOOLEAN NOT NULL DEFAULT false"
+    ))
+
+
 # Em ordem; o nome é a chave gravada no banco e não pode mudar depois de
 # publicado. Um acerto novo entra no fim, com nome novo.
 MIGRACOES = (
     ("2026-10-clientes-em-maiusculas", _clientes_em_maiusculas),
+    ("2026-11-endereco-da-lembrancinha", _endereco_da_lembrancinha),
 )

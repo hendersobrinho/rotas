@@ -49,6 +49,7 @@ class DadosEndereco:
     cidade: str | None = None
     cep: str | None = None
     observacao: str | None = None
+    lembrancinha: bool = False
 
     def normalizado(self) -> "DadosEndereco":
         return DadosEndereco(
@@ -62,6 +63,7 @@ class DadosEndereco:
             cidade=maiusculo(self.cidade),
             cep=maiusculo(self.cep),
             observacao=maiusculo(self.observacao),
+            lembrancinha=bool(self.lembrancinha),
         )
 
     def esta_vazio(self) -> bool:

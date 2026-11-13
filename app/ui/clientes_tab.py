@@ -41,9 +41,10 @@ from PySide6.QtWidgets import (
 )
 
 from app.db import session_scope
-from app.models import Cliente, Evento, TipoCliente, VinculoSocio
+from app.models import Cliente, Evento, SituacaoLembrancinha, TipoCliente, VinculoSocio
 from app.repository import clientes as repo_clientes
 from app.repository import eventos as repo_eventos
+from app.repository import lembrancinhas as repo_lembrancinhas
 from app.repository import recorrencias as repo_recorrencias
 from app.repository import socios as repo_socios
 from app.schemas import DadosCliente
@@ -143,6 +144,18 @@ def pilula(texto: str, cor: str, fundo: str) -> QLabel:
         f"background: {fundo}; color: {cor}; border-radius: 8px;"
         " padding: 2px 9px; font-size: 11px; font-weight: 700;"
     )
+    return etiqueta
+
+
+def pilula_lembrancinha(situacao: SituacaoLembrancinha, ano: int) -> QLabel:
+    """O selo do cliente que recebe a lembrancinha de fim de ano."""
+    cor, fundo = {
+        SituacaoLembrancinha.A_ENTREGAR: (CORES["carimbo"], CORES["carimbo_claro"]),
+        SituacaoLembrancinha.ENTREGUE: (CORES["verde"], CORES["verde_claro"]),
+        SituacaoLembrancinha.NAO_ENVIAR: (CORES["tinta_media"], CORES["cinza_claro"]),
+    }[situacao]
+    etiqueta = pilula(f"🎁  LEMBRANCINHA {ano} · {situacao.value.upper()}", cor, fundo)
+    etiqueta.setToolTip("Este cliente está na lista de lembrancinhas de fim de ano.")
     return etiqueta
 
 
@@ -372,6 +385,7 @@ class ClientesTab(QWidget):
         self._editando = False
         self._clientes: list[Cliente] = []
         self._contagem_vinculos: dict[int, tuple[int, int]] = {}
+        self._lembrancinhas: dict[int, SituacaoLembrancinha] = {}
 
         self.pilha = QStackedWidget()
         self.pilha.addWidget(self._montar_lista())
@@ -504,6 +518,13 @@ class ClientesTab(QWidget):
                 nome = self.tabela.item(linha, 0)
                 nome.setFont(negrito)
                 nome.setToolTip(self._rotulo(cliente))
+                situacao = self._lembrancinhas.get(cliente.id)
+                if situacao is not None:
+                    nome.setText(f"{cliente.nome_exibicao}  🎁")
+                    nome.setToolTip(
+                        f"{self._rotulo(cliente)}\nRecebe lembrancinha"
+                        f" — {date.today().year}: {situacao.value.lower()}"
+                    )
                 tipo = self.tabela.item(linha, 1)
                 tipo.setForeground(QColor(_cores_do_tipo(cliente.tipo)[0]))
                 tipo.setFont(QFont(FONTE_DADOS, 9, QFont.Weight.Bold))
@@ -821,6 +842,9 @@ class ClientesTab(QWidget):
     def _acrescentar_formulario(self, endereco=None) -> EnderecoForm:
         formulario = EnderecoForm(endereco)
         formulario.remocao_pedida.connect(self._remover_endereco)
+        formulario.lembrancinha.toggled.connect(
+            lambda marcado, f=formulario: self._um_so_da_lembrancinha(f, marcado)
+        )
         self.lista_enderecos.addWidget(formulario)
         return formulario
 
@@ -831,6 +855,14 @@ class ClientesTab(QWidget):
         formulario = self._acrescentar_formulario()
         formulario.rotulo_endereco.setFocus()
         self._atualizar_resumo_enderecos()
+
+    def _um_so_da_lembrancinha(self, escolhido: EnderecoForm, marcado: bool) -> None:
+        """Só um endereço é o das lembrancinhas: marcar um desmarca os outros."""
+        if not marcado:
+            return
+        for formulario in self._formularios_endereco():
+            if formulario is not escolhido:
+                formulario.lembrancinha.setChecked(False)
 
     def _remover_endereco(self, formulario: EnderecoForm) -> None:
         self.lista_enderecos.removeWidget(formulario)
@@ -1001,6 +1033,9 @@ class ClientesTab(QWidget):
                 vinculos = sessao.execute(
                     VinculoSocio.__table__.select()
                 ).all()
+                self._lembrancinhas = repo_lembrancinhas.situacao_por_cliente(
+                    sessao, date.today().year
+                )
         except Exception as erro:
             mostrar_erro(self, erro, "Erro ao listar clientes")
             return
@@ -1107,6 +1142,9 @@ class ClientesTab(QWidget):
                 CORES["cinza_claro"] if quantos else CORES["vermelho_claro"],
             )
         )
+        situacao = self._lembrancinhas.get(cliente.id)
+        if situacao is not None:
+            self.pilulas_ficha.addWidget(pilula_lembrancinha(situacao, date.today().year))
         self.pilulas_ficha.addStretch(1)
 
         # Contato
@@ -1190,6 +1228,10 @@ class ClientesTab(QWidget):
         topo.setSpacing(8)
         topo.addWidget(titulo)
         topo.addWidget(tipo)
+        if endereco.lembrancinha:
+            selo = pilula("🎁  LEMBRANCINHAS", CORES["carimbo"], CORES["carimbo_claro"])
+            selo.setToolTip("A lembrancinha de fim de ano vai para este endereço.")
+            topo.addWidget(selo)
         topo.addStretch(1)
         resumo = QLabel(endereco.resumo())
         resumo.setWordWrap(True)

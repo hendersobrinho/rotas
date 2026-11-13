@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QFrame,
     QGridLayout,
@@ -229,6 +230,12 @@ class EnderecoForm(QFrame):
         self.observacao = QPlainTextEdit()
         self.observacao.setMaximumHeight(56)
 
+        self.lembrancinha = QCheckBox("🎁  Endereço das lembrancinhas")
+        self.lembrancinha.setToolTip(
+            "Marcado, o cliente entra na lista de lembrancinhas de fim de ano"
+            " com este endereço — sem precisar cadastrar de novo."
+        )
+
         self.btn_remover = QPushButton("Remover")
         marcar(self.btn_remover, variante="perigo")
         self.btn_remover.clicked.connect(lambda: self.remocao_pedida.emit(self))
@@ -242,6 +249,8 @@ class EnderecoForm(QFrame):
         topo.addWidget(self.campo_tipo)
         topo.addWidget(self.rotulo_endereco, 1)
         topo.addStretch(1)
+        topo.addWidget(self.lembrancinha)
+        topo.addSpacing(8)
         topo.addWidget(self.btn_remover)
         coluna.addLayout(topo)
 
@@ -281,6 +290,7 @@ class EnderecoForm(QFrame):
         ):
             campo.clear()
         self.observacao.clear()
+        self.lembrancinha.setChecked(False)
 
     def preencher(self, endereco: Endereco | None) -> None:
         self.limpar()
@@ -296,6 +306,7 @@ class EnderecoForm(QFrame):
         self.cidade.setText(endereco.cidade or "")
         self.cep.setText(endereco.cep or "")
         self.observacao.setPlainText(endereco.observacao or "")
+        self.lembrancinha.setChecked(bool(endereco.lembrancinha))
 
     def somente_leitura(self, valor: bool) -> None:
         for campo in (
@@ -312,6 +323,7 @@ class EnderecoForm(QFrame):
         self.observacao.setReadOnly(valor)
         marcar(self.observacao, leitura=valor)
         self.campo_tipo.setEnabled(not valor)
+        self.lembrancinha.setEnabled(not valor)
         self.btn_remover.setVisible(not valor)
 
     def dados(self) -> DadosEndereco:
@@ -326,4 +338,5 @@ class EnderecoForm(QFrame):
             cidade=self.cidade.text(),
             cep=self.cep.text(),
             observacao=self.observacao.toPlainText(),
+            lembrancinha=self.lembrancinha.isChecked(),
         )

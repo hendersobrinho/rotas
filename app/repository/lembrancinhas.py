@@ -162,13 +162,95 @@ def resumo_do_ano(
     return contagem
 
 
+def situacao_por_cliente(
+    sessao: Session, ano: int
+) -> dict[int, SituacaoLembrancinha]:
+    """Clientes da agenda que recebem lembrancinha, com a situação do ano.
+
+    Só os destinatários ativos e ligados a um cliente entram.
+    """
+    consulta = select(DestinatarioLembrancinha).where(
+        DestinatarioLembrancinha.cliente_id.is_not(None),
+        DestinatarioLembrancinha.ativo.is_(True),
+    )
+    return {
+        d.cliente_id: d.situacao_no_ano(ano) for d in sessao.scalars(consulta)
+    }
+
+
+_CAMPOS_DO_ENDERECO = ("logradouro", "numero", "complemento", "bairro", "cidade", "cep")
+
+
+def endereco_marcado(cliente: Cliente):
+    """O endereço que o cadastro do cliente marcou como o das lembrancinhas."""
+    return next((e for e in cliente.enderecos if e.lembrancinha), None)
+
+
+def sincronizar_com_cliente(sessao: Session, cliente: Cliente, tinha_marcado: bool) -> None:
+    """Leva para a lista de lembrancinhas o endereço marcado no cadastro.
+
+    Com um endereço marcado, o cliente entra na lista (ou o destinatário dele
+    ganha o endereço novo). Desmarcado, o destinatário fica inativo — sai da
+    lista do ano, mas guarda o histórico das entregas.
+    """
+    marcado = endereco_marcado(cliente)
+    destinatario = sessao.scalars(
+        select(DestinatarioLembrancinha)
+        .where(DestinatarioLembrancinha.cliente_id == cliente.id)
+        .order_by(DestinatarioLembrancinha.ativo.desc(), DestinatarioLembrancinha.id)
+    ).first()
+
+    if marcado is None:
+        if tinha_marcado and destinatario is not None and destinatario.ativo:
+            destinatario.ativo = False
+            sessao.flush()
+            repo_logs.registrar(
+                sessao, AcaoLog.ALTERACAO, _ENTIDADE,
+                f"{_PREFIXO}: {destinatario.nome} saiu da lista"
+                " (endereço desmarcado no cadastro)", destinatario.id,
+            )
+        return
+
+    if destinatario is None:
+        # Alguém com o mesmo nome, ainda sem ligação: é o mesmo, liga.
+        dados = dados_do_cliente(cliente).normalizado()
+        destinatario = sessao.scalars(
+            select(DestinatarioLembrancinha).where(
+                DestinatarioLembrancinha.nome == dados.nome,
+                DestinatarioLembrancinha.cliente_id.is_(None),
+            )
+        ).first()
+        if destinatario is None:
+            criar(sessao, dados)
+            return
+        destinatario.cliente_id = cliente.id
+
+    mudou = not destinatario.ativo or any(
+        getattr(destinatario, campo) != getattr(marcado, campo)
+        for campo in _CAMPOS_DO_ENDERECO
+    )
+    if not mudou:
+        return
+    for campo in _CAMPOS_DO_ENDERECO:
+        setattr(destinatario, campo, getattr(marcado, campo))
+    destinatario.ativo = True
+    sessao.flush()
+    repo_logs.registrar(
+        sessao, AcaoLog.ALTERACAO, _ENTIDADE,
+        f"{_PREFIXO}: {destinatario.nome} — endereço do cadastro do cliente",
+        destinatario.id,
+    )
+
+
 def dados_do_cliente(cliente: Cliente) -> DadosDestinatario:
     """Começa um destinatário a partir de um cliente da agenda.
 
-    O endereço comercial tem preferência — é para lá que o presente vai.
+    Vale o endereço marcado no cadastro como o das lembrancinhas; sem ele, o
+    comercial tem preferência — é para lá que o presente costuma ir.
     """
     endereco = (
-        cliente.endereco_por_tipo(TipoEndereco.COMERCIAL)
+        endereco_marcado(cliente)
+        or cliente.endereco_por_tipo(TipoEndereco.COMERCIAL)
         or (cliente.enderecos[0] if cliente.enderecos else None)
     )
     return DadosDestinatario(

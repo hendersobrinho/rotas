@@ -346,6 +346,11 @@ class Endereco(Base):
     cidade: Mapped[str | None] = mapped_column(String(100))
     cep: Mapped[str | None] = mapped_column(String(15))
     observacao: Mapped[str | None] = mapped_column(Text)
+    # Para onde vai a lembrancinha de fim de ano (no máximo um por cliente).
+    # Marcado, o cliente entra na lista de lembrancinhas com este endereço.
+    lembrancinha: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     cliente: Mapped[Cliente] = relationship(back_populates="enderecos")
     eventos: Mapped[list["Evento"]] = relationship(back_populates="endereco")

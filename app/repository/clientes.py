@@ -19,6 +19,7 @@ _CAMPOS_ENDERECO = (
     "cidade",
     "cep",
     "observacao",
+    "lembrancinha",
 )
 
 
@@ -58,6 +59,7 @@ def criar_cliente(sessao: Session, dados: DadosCliente) -> Cliente:
     sessao.add(cliente)
     _aplicar_enderecos(cliente, dados.enderecos)
     sessao.flush()
+    _sincronizar_lembrancinha(sessao, cliente, tinha_marcado=False)
     repo_logs.registrar(
         sessao, AcaoLog.CRIACAO, EntidadeLog.CLIENTE,
         f"Cliente “{cliente.nome_exibicao}”", cliente.id,
@@ -78,8 +80,10 @@ def atualizar_cliente(sessao: Session, cliente_id: int, dados: DadosCliente) -> 
     cliente.apelido = dados.apelido
     cliente.telefone = dados.telefone
     cliente.observacao = dados.observacao
+    tinha_marcado = any(e.lembrancinha for e in cliente.enderecos)
     _aplicar_enderecos(cliente, dados.enderecos)
     sessao.flush()
+    _sincronizar_lembrancinha(sessao, cliente, tinha_marcado)
     repo_logs.registrar(
         sessao, AcaoLog.ALTERACAO, EntidadeLog.CLIENTE,
         f"Cliente “{cliente.nome_exibicao}”", cliente.id,
@@ -125,6 +129,16 @@ def validar(dados: DadosCliente) -> None:
                 "Dê um nome diferente para cada um."
             )
         usados.add(limpo)
+
+    marcados = [e for e in dados.enderecos if e.lembrancinha and not e.esta_vazio()]
+    if len(marcados) > 1:
+        raise ValueError("Só um endereço pode ser o das lembrancinhas.")
+
+
+def _sincronizar_lembrancinha(sessao: Session, cliente: Cliente, tinha_marcado: bool) -> None:
+    from app.repository import lembrancinhas as repo_lembrancinhas
+
+    repo_lembrancinhas.sincronizar_com_cliente(sessao, cliente, tinha_marcado)
 
 
 def _aplicar_enderecos(cliente: Cliente, enderecos: list[DadosEndereco]) -> None:

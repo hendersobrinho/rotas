@@ -159,7 +159,7 @@ testes/
 ├── comum.py               banco descartável e dados de exemplo
 ├── teste_interface.py     entrada, conexão, clientes, agenda, cadastros e painel
 ├── teste_recorrencia.py   regras de repetição e abertura automática
-├── teste_enderecos.py     vários endereços por cliente
+├── teste_enderecos.py     vários endereços e o endereço das lembrancinhas
 ├── teste_obrigatorios.py  cliente e endereço obrigatórios
 ├── teste_importacao.py    modelo da planilha, leitura, conferência e gravação
 ├── teste_conexao.py       primeiro acesso, tela de Conexão e limite de espera
@@ -172,6 +172,7 @@ scripts/
 ├── migrar_servicos_fixos.py         migração dos serviços automáticos
 ├── migrar_varios_enderecos.py       libera vários endereços por cliente
 ├── gerar_icones.py                  ícone do programa em todos os tamanhos
+├── exemplos.py                      cadastra (e --apagar remove) dados de exemplo
 ├── instalar_atalho_linux.py         atalho no menu e na área de trabalho
 └── diagnostico_capslock.py          o que cada leitura do Caps Lock responde
 ```
@@ -420,6 +421,15 @@ lado do ano navegam entre campanhas. Em janeiro a tela ainda abre na campanha
 do ano que acabou. Quem não deve mais receber é desmarcado em *Recebe
 lembrancinha* e sai da contagem sem perder o histórico.
 
+**Pelo cadastro do cliente**: cada endereço do cadastro (de empresa ou de
+sócio) tem a opção **🎁 Endereço das lembrancinhas**. Marcando e salvando, o
+cliente entra sozinho nesta lista com aquele endereço — sem cadastrar de novo.
+Só um endereço por cliente pode ser o das lembrancinhas (marcar um desmarca o
+outro); mudar o endereço no cadastro atualiza a lista, e desmarcar tira o
+cliente da lista, guardando o histórico das entregas. Quem recebe lembrancinha
+aparece com 🎁 na lista de clientes, com o selo *Lembrancinha 2026 · situação*
+na ficha e *Lembrancinhas* no endereço escolhido.
+
 A barra de andamento mostra quantos já foram entregues; *Exportar planilha*
 gera um .xlsx (ou .csv) com a lista filtrada, para imprimir ou mandar para quem
 vai entregar.
@@ -567,6 +577,20 @@ Para liberar vários endereços por cliente:
 
 As tabelas de usuários, sessões e registro de atividades são criadas sozinhas
 por `create_all` na primeira execução — não precisam de script.
+
+## Dados de exemplo
+
+Para ver o programa com movimento — atrasados, serviços de hoje, baixados, não
+realizados, remarcados, cancelados, serviços automáticos, sócios e
+lembrancinhas:
+
+```bash
+.venv-win\Scripts\python scripts\exemplos.py           # cadastra
+.venv-win\Scripts\python scripts\exemplos.py --apagar  # remove tudo de novo
+```
+
+O que foi criado fica anotado em `exemplos.json`, na pasta de dados do
+programa; o `--apagar` remove exatamente isso e não toca no resto.
 
 ## Ícone do programa
 

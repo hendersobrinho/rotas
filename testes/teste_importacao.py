@@ -285,7 +285,7 @@ init_db()
 with session_scope() as sessao:
     assert repo_clientes.obter_cliente(sessao, antigo_id).apelido == "minúsculo"
     anotadas = sessao.execute(text("select nome from migracoes_aplicadas")).scalars().all()
-    assert anotadas == ["2026-10-clientes-em-maiusculas"], anotadas
+    assert "2026-10-clientes-em-maiusculas" in anotadas, anotadas
 print("ok o acerto fica anotado no banco e a abertura seguinte não repete")
 
 print("TESTE IMPORTACAO OK")
