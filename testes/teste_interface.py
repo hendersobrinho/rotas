@@ -412,6 +412,24 @@ def lembrancinhas(janela: MainWindow) -> None:
     assert tela.tabela.rowCount() == 2
     assert "0 de 2" in tela.texto_andamento.text()
 
+    # O botão "Novo destinatário" de verdade: o clicked manda um bool, que não
+    # pode cair no lugar dos dados iniciais.
+    from PySide6.QtWidgets import QPushButton
+
+    from app.ui import lembrancinhas_tab
+
+    abertos = []
+    original = lembrancinhas_tab.DestinatarioDialog.exec
+    lembrancinhas_tab.DestinatarioDialog.exec = lambda d: abertos.append(d) or 0
+    try:
+        botao = next(b for b in tela.findChildren(QPushButton)
+                     if "Novo" in b.text())
+        botao.click()
+    finally:
+        lembrancinhas_tab.DestinatarioDialog.exec = original
+    assert len(abertos) == 1, "o botão abre o diálogo em branco"
+    print("ok lembrancinhas: botão Novo abre o diálogo")
+
     tela._selecionar(avulso_id)
     tela._marcar(SituacaoLembrancinha.ENTREGUE)
     app.processEvents()

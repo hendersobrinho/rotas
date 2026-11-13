@@ -349,7 +349,7 @@ class LembrancinhasTab(QWidget):
         exportar.clicked.connect(self._exportar)
         novo = QPushButton("Novo destinatário")
         marcar(novo, variante="primario")
-        novo.clicked.connect(self._novo)
+        novo.clicked.connect(lambda: self._novo())
 
         barra = QHBoxLayout()
         barra.setSpacing(8)

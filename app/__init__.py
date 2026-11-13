@@ -5,4 +5,4 @@ executável do Windows carrega nas propriedades do arquivo (ver rotas.spec) e o
 instalador do Inno Setup lê daqui na hora de compilar (ver instalador/).
 """
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
