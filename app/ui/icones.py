@@ -118,7 +118,29 @@ def _check(p: QPainter) -> None:
     p.drawPath(caminho)
 
 
+def _lua(p: QPainter) -> None:
+    # Crescente: um círculo com outro "mordendo" o lado direito.
+    caminho = QPainterPath(QPointF(15.5, 4.2))
+    caminho.cubicTo(QPointF(9.5, 3.2), QPointF(4.2, 7.6), QPointF(4.2, 13))
+    caminho.cubicTo(QPointF(4.2, 17.6), QPointF(8, 20.8), QPointF(12.4, 20.8))
+    caminho.cubicTo(QPointF(16.2, 20.8), QPointF(19.2, 18.6), QPointF(20.2, 15.4))
+    caminho.cubicTo(QPointF(14.6, 16.8), QPointF(10.4, 11), QPointF(15.5, 4.2))
+    p.drawPath(caminho)
+
+
+def _sol(p: QPainter) -> None:
+    p.drawEllipse(QPointF(12, 12), 4, 4)
+    for x1, y1, x2, y2 in (
+        (12, 2.5, 12, 4.5), (12, 19.5, 12, 21.5), (2.5, 12, 4.5, 12),
+        (19.5, 12, 21.5, 12), (5.3, 5.3, 6.7, 6.7), (17.3, 17.3, 18.7, 18.7),
+        (5.3, 18.7, 6.7, 17.3), (17.3, 6.7, 18.7, 5.3),
+    ):
+        p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+
 DESENHOS: dict[str, Callable[[QPainter], None]] = {
+    "lua": _lua,
+    "sol": _sol,
     "agenda": _agenda,
     "baixas": _baixas,
     "clientes": _clientes,

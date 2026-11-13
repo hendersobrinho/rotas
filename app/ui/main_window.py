@@ -29,6 +29,7 @@ from app.ui.atualizacao import VerificadorDeAtualizacao
 from app.ui.baixas_tab import BaixasTab
 from app.ui.cadastros import CadastrosTab
 from app.ui.clientes_tab import ClientesTab
+from app.ui import estilo
 from app.ui.estilo import CORES, FONTE_DADOS, FONTE_TITULO, marcar
 from app.ui.eventos_tab import EventosTab
 from app.ui.lembrancinhas_tab import LembrancinhasTab
@@ -36,10 +37,6 @@ from app.ui.login import esquecer_neste_computador
 from app.ui.mensagens import confirmar
 from app.ui.painel_tab import PainelTab
 from app.ui.registro_tab import RegistroTab
-
-COR_ICONE = CORES["lateral_texto"]
-COR_ICONE_ATIVO = CORES["laranja"]
-
 
 def _iniciais(nome: str) -> str:
     partes = [p for p in nome.split() if p]
@@ -57,7 +54,7 @@ class BotaoNavegacao(QPushButton):
         super().__init__(texto, parent)
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setIcon(icones.icone(icone, COR_ICONE, COR_ICONE_ATIVO))
+        self.setIcon(icones.icone(icone, CORES["lateral_texto"], CORES["laranja"]))
         self.setIconSize(QSize(18, 18))
         marcar(self, nav=True)
         self.setMinimumHeight(40)
@@ -65,7 +62,7 @@ class BotaoNavegacao(QPushButton):
         self._contador = QLabel(self)
         self._contador.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._contador.setStyleSheet(
-            f"background: {CORES['laranja']}; color: {CORES['tinta']};"
+            f"background: {CORES['laranja']}; color: {CORES['sobre_laranja']};"
             f'border-radius: 9px; font-family: "{FONTE_DADOS}"; font-size: 10px;'
             "font-weight: 700; padding: 0 6px;"
         )
@@ -116,6 +113,9 @@ class MainWindow(QMainWindow):
         self.aba_baixas = BaixasTab()
         self.aba_lembrancinhas = LembrancinhasTab()
         self.saiu_pelo_logout = False
+        # Trocar de tema remonta a janela (ver main.py): as telas leem as cores
+        # quando são montadas.
+        self.trocou_tema = False
 
         # `abas` continua com esse nome: é uma pilha de telas, que a barra
         # lateral troca — e quem já chamava abas.setCurrentIndex segue igual.
@@ -218,7 +218,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(secao("ROTAS"))
         layout.addSpacing(4)
         layout.addWidget(item("Agenda", "agenda", self.ABA_AGENDA))
-        layout.addWidget(item("Baixas", "baixas", self.ABA_BAIXAS))
+        layout.addWidget(item("Rota e baixas", "baixas", self.ABA_BAIXAS))
         layout.addWidget(item("Clientes", "clientes", self.ABA_CLIENTES))
         layout.addSpacing(14)
         layout.addWidget(secao("ESCRITÓRIO"))
@@ -231,7 +231,7 @@ class MainWindow(QMainWindow):
 
         # Aparece só quando o GitHub tem versão nova.
         self.btn_atualizacao = QPushButton("Atualização disponível")
-        self.btn_atualizacao.setIcon(icones.icone("atualizar", CORES["tinta"]))
+        self.btn_atualizacao.setIcon(icones.icone("atualizar", CORES["sobre_laranja"]))
         self.btn_atualizacao.setIconSize(QSize(16, 16))
         self.btn_atualizacao.setCursor(Qt.CursorShape.PointingHandCursor)
         marcar(self.btn_atualizacao, variante="primario")
@@ -243,18 +243,54 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._cartao_usuario())
         layout.addSpacing(8)
 
+        rodape = QHBoxLayout()
+        rodape.setSpacing(4)
         versao = QPushButton(f"v{__version__} · buscar atualização")
         versao.setToolTip("Ver no GitHub se há uma versão nova do Rotas")
         versao.setCursor(Qt.CursorShape.PointingHandCursor)
         versao.setStyleSheet(
-            "QPushButton { background: transparent; border: none; color: #7F8FB6;"
+            "QPushButton { background: transparent; border: none;"
+            f" color: {CORES['lateral_fraco']};"
             f' font-family: "{FONTE_DADOS}"; font-size: 10px; text-align: left;'
             " padding: 2px 4px; }"
             "QPushButton:hover { color: #FFFFFF; }"
         )
         versao.clicked.connect(lambda: self.atualizador.verificar(manual=True))
-        layout.addWidget(versao)
+        rodape.addWidget(versao, 1)
+
+        noturno = estilo.escuro()
+        self.btn_tema = QPushButton()
+        self.btn_tema.setIcon(
+            icones.icone("sol" if noturno else "lua", CORES["lateral_texto"], "#FFFFFF")
+        )
+        self.btn_tema.setIconSize(QSize(16, 16))
+        self.btn_tema.setFixedSize(30, 26)
+        self.btn_tema.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_tema.setToolTip(
+            "Voltar para o tema claro" if noturno else "Usar o tema escuro"
+        )
+        self.btn_tema.setStyleSheet(
+            "QPushButton { background: transparent;"
+            f" border: 1px solid {CORES['lateral_borda']}; border-radius: 8px; }}"
+            f"QPushButton:hover {{ background: {CORES['lateral_hover']}; }}"
+        )
+        self.btn_tema.clicked.connect(self.alternar_tema)
+        rodape.addWidget(self.btn_tema)
+        layout.addLayout(rodape)
         return barra
+
+    def alternar_tema(self) -> None:
+        """Claro ↔ escuro. Guarda a escolha e pede para a janela ser remontada."""
+        novo = estilo.CLARO if estilo.escuro() else estilo.ESCURO
+        estilo.salvar_tema(novo)
+        self.trocou_tema = True
+        self.close()
+
+    def tela_atual(self) -> int:
+        return self.abas.currentIndex()
+
+    def ir_para(self, indice: int) -> None:
+        self.abas.setCurrentIndex(indice)
 
     def _cartao_usuario(self) -> QFrame:
         usuario = sessao_app.usuario_atual()

@@ -32,7 +32,7 @@ def painel_da_marca(largura: int = 340) -> QFrame:
     painel.setObjectName("painelMarca")
     painel.setFixedWidth(largura)
     painel.setStyleSheet(
-        f"QFrame#painelMarca {{ background: {CORES['marca']}; border: none; }}"
+        f"QFrame#painelMarca {{ background: {marca_visual.AZUL_MARCA}; border: none; }}"
         "QFrame#painelMarca QLabel { background: transparent; }"
     )
     logotipo = QLabel()

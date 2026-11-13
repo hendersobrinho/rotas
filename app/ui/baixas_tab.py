@@ -1,4 +1,4 @@
-"""Quadro de baixas: as rotas que ainda esperam confirmação.
+"""Rota e baixas: emitir a rota e acompanhar o que ainda espera confirmação.
 
 Quatro colunas, como num quadro de cartões:
 
@@ -9,21 +9,27 @@ Quatro colunas, como num quadro de cartões:
   * Baixados — concluídos nos últimos sete dias, para conferir e desfazer
     algum engano.
 
-O cartão vai de uma coluna para outra arrastando, ou pelos botões dele.
+O cartão vai de uma coluna para outra arrastando, ou pelos botões dele. No
+topo, os filtros (cliente, tipo, período) e o botão de emitir a rota — que
+pergunta se os atrasados sem baixa vão junto.
 """
 
 from __future__ import annotations
 
 from datetime import date, timedelta
 
+import enum
+
 from PySide6.QtCore import QMimeData, QPoint, Qt, Signal
 from PySide6.QtGui import QDrag, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLayout,
+    QLineEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -32,9 +38,10 @@ from PySide6.QtWidgets import (
 )
 
 from app.db import session_scope
-from app.models import Cliente, Evento, StatusEvento
+from app.models import Cliente, Evento, Periodo, StatusEvento
 from app.repository import clientes as repo_clientes
 from app.repository import eventos as repo_eventos
+from app.repository import tipos_servico as repo_tipos
 from app.ui.calendario import TextoElidido
 from app.ui.datas import DIAS_SEMANA, data_por_extenso
 from app.ui.estilo import (
@@ -47,7 +54,7 @@ from app.ui.estilo import (
     marcar,
 )
 from app.ui.mensagens import confirmar, mostrar_erro
-from app.ui.widgets import rotulo
+from app.ui.widgets import Segmentado, rotulo
 
 TIPO_MIME = "application/x-rotas-evento"
 DIAS_BAIXADOS = 7
@@ -57,25 +64,38 @@ HOJE = "hoje"
 NAO_REALIZADOS = "nao_realizados"
 BAIXADOS = "baixados"
 
-# (título, explicação, cor da faixa, cor do texto, fundo da contagem)
-COLUNAS = {
-    ATRASADOS: (
-        "Atrasados", "Dias que passaram sem baixa",
-        CORES["laranja"], CORES["carimbo"], CORES["laranja_claro"],
-    ),
-    HOJE: (
-        "Hoje", "Na rua agora",
-        CORES["ciano"], CORES["marca"], CORES["ciano_claro"],
-    ),
-    NAO_REALIZADOS: (
-        "Não realizados", "Sem remarcação",
-        CORES["vermelho"], CORES["vermelho"], CORES["vermelho_claro"],
-    ),
-    BAIXADOS: (
-        "Baixados", f"Concluídos nos últimos {DIAS_BAIXADOS} dias",
-        CORES["verde"], CORES["verde"], CORES["verde_claro"],
-    ),
-}
+CHAVES = (ATRASADOS, HOJE, NAO_REALIZADOS, BAIXADOS)
+
+
+def coluna_info(chave: str) -> tuple[str, str, str, str, str]:
+    """(título, explicação, cor da faixa, cor do texto, fundo da contagem).
+
+    Lida na hora, e não guardada: as cores mudam com o tema.
+    """
+    return {
+        ATRASADOS: (
+            "Atrasados", "Dias que passaram sem baixa",
+            CORES["laranja"], CORES["carimbo"], CORES["laranja_claro"],
+        ),
+        HOJE: (
+            "Hoje", "Na rua agora",
+            CORES["ciano"], CORES["azul"], CORES["ciano_claro"],
+        ),
+        NAO_REALIZADOS: (
+            "Não realizados", "Sem remarcação",
+            CORES["vermelho"], CORES["vermelho"], CORES["vermelho_claro"],
+        ),
+        BAIXADOS: (
+            "Baixados", f"Concluídos nos últimos {DIAS_BAIXADOS} dias",
+            CORES["verde"], CORES["verde"], CORES["verde_claro"],
+        ),
+    }[chave]
+
+
+class FiltroPeriodo(enum.Enum):
+    TODOS = "Dia todo"
+    MANHA = "Manhã"
+    TARDE = "Tarde"
 
 VAZIO = {
     ATRASADOS: ("Tudo em dia", "Nenhum serviço de dias anteriores esperando baixa."),
@@ -280,7 +300,7 @@ class ColunaQuadro(QFrame):
     def __init__(self, chave: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.chave = chave
-        titulo, explicacao, cor_faixa, cor_texto, fundo = COLUNAS[chave]
+        titulo, explicacao, cor_faixa, cor_texto, fundo = coluna_info(chave)
         self._cor_faixa = cor_faixa
         self.setObjectName("colunaQuadro")
         self.setAcceptDrops(True)
@@ -415,7 +435,7 @@ class Indicador(QFrame):
     def __init__(self, chave: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.chave = chave
-        titulo, _explicacao, cor_faixa, _cor_texto, _fundo = COLUNAS[chave]
+        titulo, _explicacao, cor_faixa, _cor_texto, _fundo = coluna_info(chave)
         marcar(self, cartao="plano")
         ponto = QLabel()
         ponto.setFixedSize(10, 10)
@@ -437,7 +457,7 @@ class Indicador(QFrame):
 
 
 class BaixasTab(QWidget):
-    """A tela inteira: título, números e o quadro."""
+    """A tela inteira: título, emitir rota, filtros, números e o quadro."""
 
     dados_alterados = Signal()
     contagem_mudou = Signal(int)  # o que pede ação: atrasados + não realizados
@@ -446,32 +466,43 @@ class BaixasTab(QWidget):
         super().__init__(parent)
         self._clientes: list[Cliente] = []
         self._atrasados_ids: list[int] = []
+        self._grupos: dict[str, list[Evento]] = {chave: [] for chave in CHAVES}
 
-        titulo = rotulo("Baixas", "titulo")
+        titulo = rotulo("Rota e baixas", "titulo")
         self.subtitulo = rotulo(
-            "Rotas que ainda esperam confirmação. Arraste o cartão para a coluna"
-            " certa ou use os botões dele; dois cliques abrem o serviço.",
+            "Emita a rota do dia e acompanhe o que ainda espera confirmação."
+            " Arraste o cartão para a coluna certa ou use os botões dele;"
+            " dois cliques abrem o serviço.",
             "fraco",
         )
         self.subtitulo.setWordWrap(True)
         atualizar = QPushButton("Atualizar")
+        marcar(atualizar, variante="fantasma")
         atualizar.clicked.connect(self.recarregar)
+        self.btn_emitir = QPushButton("Emitir rota")
+        marcar(self.btn_emitir, variante="primario")
+        self.btn_emitir.setToolTip(
+            "PDF da rota para o motoboy — com a opção de levar os atrasados junto"
+        )
+        self.btn_emitir.clicked.connect(self.emitir_rota)
 
         textos = QVBoxLayout()
         textos.setSpacing(2)
         textos.addWidget(titulo)
         textos.addWidget(self.subtitulo)
         cabecalho = QHBoxLayout()
+        cabecalho.setSpacing(8)
         cabecalho.addLayout(textos, 1)
         cabecalho.addWidget(atualizar, 0, Qt.AlignmentFlag.AlignTop)
+        cabecalho.addWidget(self.btn_emitir, 0, Qt.AlignmentFlag.AlignTop)
 
-        self.indicadores = {chave: Indicador(chave) for chave in COLUNAS}
+        self.indicadores = {chave: Indicador(chave) for chave in CHAVES}
         linha_numeros = QHBoxLayout()
         linha_numeros.setSpacing(12)
         for indicador in self.indicadores.values():
             linha_numeros.addWidget(indicador, 1)
 
-        self.colunas = {chave: ColunaQuadro(chave) for chave in COLUNAS}
+        self.colunas = {chave: ColunaQuadro(chave) for chave in CHAVES}
         quadro = QHBoxLayout()
         quadro.setSpacing(12)
         for coluna in self.colunas.values():
@@ -480,17 +511,107 @@ class BaixasTab(QWidget):
 
         atrasados = self.colunas[ATRASADOS]
         atrasados.acao.setText("✓ Baixar todos")
-        atrasados.acao.setToolTip("Dar baixa em todos os atrasados de uma vez")
+        atrasados.acao.setToolTip("Dar baixa em todos os atrasados mostrados")
         atrasados.acao.clicked.connect(self._baixar_todos)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 22, 28, 22)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
         layout.addLayout(cabecalho)
+        layout.addWidget(self._barra_filtros())
         layout.addLayout(linha_numeros)
         layout.addLayout(quadro, 1)
 
         self.recarregar()
+
+    # -------------------------------------------------------------- filtros
+    def _barra_filtros(self) -> QWidget:
+        barra = QFrame()
+        marcar(barra, cartao="plano")
+        self.busca = QLineEdit()
+        self.busca.setPlaceholderText("Filtrar por cliente ou endereço")
+        self.busca.setClearButtonEnabled(True)
+        self.busca.setMinimumWidth(260)
+        self.busca.textChanged.connect(lambda _t: self._desenhar())
+
+        self.filtro_tipo = QComboBox()
+        self.filtro_tipo.setMinimumWidth(180)
+        self.filtro_tipo.currentIndexChanged.connect(lambda _i: self._desenhar())
+
+        self.filtro_periodo = Segmentado(FiltroPeriodo)
+        self.filtro_periodo.mudou.connect(lambda _v: self._desenhar())
+
+        self.limpar_filtros = QPushButton("Limpar filtros")
+        marcar(self.limpar_filtros, variante="fantasma")
+        self.limpar_filtros.clicked.connect(self._limpar_filtros)
+        self.limpar_filtros.setVisible(False)
+
+        self.resumo_filtro = rotulo("", "fraco")
+
+        linha = QHBoxLayout(barra)
+        linha.setContentsMargins(12, 10, 12, 10)
+        linha.setSpacing(10)
+        linha.addWidget(self.busca, 2)
+        linha.addWidget(rotulo("Tipo", "campo"))
+        linha.addWidget(self.filtro_tipo, 1)
+        linha.addSpacing(6)
+        linha.addWidget(self.filtro_periodo)
+        linha.addWidget(self.limpar_filtros)
+        linha.addStretch(1)
+        linha.addWidget(self.resumo_filtro)
+        return barra
+
+    def _recarregar_tipos(self) -> None:
+        atual = self.filtro_tipo.currentData()
+        try:
+            with session_scope() as sessao:
+                tipos = repo_tipos.listar(sessao, apenas_ativos=False)
+        except Exception:
+            return
+        self.filtro_tipo.blockSignals(True)
+        self.filtro_tipo.clear()
+        self.filtro_tipo.addItem("Todos os tipos", None)
+        for tipo in tipos:
+            self.filtro_tipo.addItem(tipo.nome, tipo.id)
+        indice = self.filtro_tipo.findData(atual)
+        self.filtro_tipo.setCurrentIndex(max(0, indice))
+        self.filtro_tipo.blockSignals(False)
+
+    def _limpar_filtros(self) -> None:
+        for campo in (self.busca, self.filtro_tipo):
+            campo.blockSignals(True)
+        self.busca.clear()
+        self.filtro_tipo.setCurrentIndex(0)
+        self.filtro_periodo.definir_valor(FiltroPeriodo.TODOS)
+        for campo in (self.busca, self.filtro_tipo):
+            campo.blockSignals(False)
+        self._desenhar()
+
+    def _filtrando(self) -> bool:
+        return bool(
+            self.busca.text().strip()
+            or self.filtro_tipo.currentData() is not None
+            or self.filtro_periodo.valor() is not FiltroPeriodo.TODOS
+        )
+
+    def _passa(self, evento: Evento) -> bool:
+        tipo = self.filtro_tipo.currentData()
+        if tipo is not None and evento.tipo_servico_id != tipo:
+            return False
+        periodo = self.filtro_periodo.valor()
+        if periodo is FiltroPeriodo.MANHA and evento.periodo is not Periodo.MANHA:
+            return False
+        if periodo is FiltroPeriodo.TARDE and evento.periodo is not Periodo.TARDE:
+            return False
+        termo = self.busca.text().strip().casefold()
+        if termo:
+            cliente = evento.cliente
+            textos = [cliente.nome, cliente.apelido or ""]
+            if evento.endereco is not None:
+                textos += [evento.endereco.etiqueta, evento.endereco.resumo()]
+            if not any(termo in texto.casefold() for texto in textos):
+                return False
+        return True
 
     # ---------------------------------------------------------------- dados
     def recarregar(self) -> None:
@@ -507,12 +628,32 @@ class BaixasTab(QWidget):
             mostrar_erro(self, erro, "Erro ao carregar as baixas")
             return
 
-        grupos = {
+        self._recarregar_tipos()
+        self._grupos = {
             ATRASADOS: [e for e in sem_baixa if e.data < hoje],
             HOJE: [e for e in sem_baixa if e.data == hoje],
             NAO_REALIZADOS: sorted(nao_realizados, key=lambda e: (e.data, e.id)),
             BAIXADOS: baixados,
         }
+        # O contador da barra lateral não depende do filtro.
+        self.contagem_mudou.emit(
+            len(self._grupos[ATRASADOS]) + len(self._grupos[NAO_REALIZADOS])
+        )
+        self._desenhar()
+
+    def _desenhar(self) -> None:
+        hoje = date.today()
+        filtrando = self._filtrando()
+        self.limpar_filtros.setVisible(filtrando)
+        grupos = {
+            chave: [e for e in eventos if self._passa(e)]
+            for chave, eventos in self._grupos.items()
+        }
+        mostrados = sum(len(lista) for lista in grupos.values())
+        total = sum(len(lista) for lista in self._grupos.values())
+        self.resumo_filtro.setText(
+            f"{mostrados} de {total} cartões" if filtrando else f"{total} cartões"
+        )
         self._atrasados_ids = [e.id for e in grupos[ATRASADOS]]
         for chave, eventos in grupos.items():
             agrupar_por_dia = chave in (ATRASADOS, BAIXADOS)
@@ -534,7 +675,12 @@ class BaixasTab(QWidget):
             self.indicadores[chave].valor.setText(str(len(eventos)))
 
         self.colunas[ATRASADOS].acao.setVisible(len(grupos[ATRASADOS]) > 1)
-        self.contagem_mudou.emit(len(grupos[ATRASADOS]) + len(grupos[NAO_REALIZADOS]))
+
+    def emitir_rota(self) -> None:
+        """O PDF da rota, com a opção de incluir os atrasados sem baixa."""
+        from app.ui.relatorio_pdf import RelatorioDialog
+
+        RelatorioDialog(self, date.today(), atalho_baixas=False).exec()
 
     def _separador_dia(self, dia: date, quantos: int, hoje: date) -> QLabel:
         texto = _dia_curto(dia) if (hoje - dia).days > 1 else (
@@ -598,7 +744,7 @@ class BaixasTab(QWidget):
         total = len(self._atrasados_ids)
         if not total or not confirmar(
             self, "Dar baixa em todos",
-            f"Confirmar que os {total} serviços atrasados foram feitos?\n\n"
+            f"Confirmar que os {total} serviços atrasados mostrados foram feitos?\n\n"
             "Cada um fica registrado como concluído no registro de atividades.",
         ):
             return

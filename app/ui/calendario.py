@@ -176,7 +176,7 @@ class CelulaDia(QFrame):
     def _pintar_numero(self) -> None:
         if self._hoje:
             estilo = (
-                f"background: {CORES['marca']}; color: #FFFFFF; border-radius: 11px;"
+                f"background: {CORES['marca']}; color: {CORES['sobre_marca']}; border-radius: 11px;"
             )
         elif self._do_mes:
             estilo = f"background: transparent; color: {CORES['tinta']};"

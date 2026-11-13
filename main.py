@@ -127,6 +127,21 @@ def _executar() -> int:
         janela.show()
         abertura.hide()
         app.exec()
+        # Trocar o tema fecha a janela e remonta outra no mesmo lugar, já com
+        # as cores novas — sem passar pelo login de novo.
+        while janela.trocou_tema:
+            tela = janela.tela_atual()
+            geometria = janela.geometry()
+            maximizada = janela.isMaximized()
+            aplicar_tema(app)
+            janela = MainWindow()
+            janela.setGeometry(geometria)
+            janela.ir_para(tela)
+            if maximizada:
+                janela.showMaximized()
+            else:
+                janela.show()
+            app.exec()
         if not janela.saiu_pelo_logout:
             return 0
         abertura.mostrar("Até logo…")

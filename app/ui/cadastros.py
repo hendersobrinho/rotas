@@ -65,7 +65,7 @@ class TipoServicoDialog(QDialog):
         self.tipo_id: int | None = self._tipo_id
         self.setWindowTitle("Tipo de serviço")
         self.setMinimumWidth(420)
-        self.setStyleSheet("QDialog { background: #FFFFFF; }")
+        self.setStyleSheet(f"QDialog {{ background: {CORES['papel']}; }}")
 
         self.campo_nome = QLineEdit()
         self.campo_nome.setPlaceholderText("Coleta, Retirada, Entrega de guia...")
@@ -140,7 +140,7 @@ class SolicitanteDialog(QDialog):
         self.solicitante_id: int | None = self._solicitante_id
         self.setWindowTitle("Solicitante")
         self.setMinimumWidth(420)
-        self.setStyleSheet("QDialog { background: #FFFFFF; }")
+        self.setStyleSheet(f"QDialog {{ background: {CORES['papel']}; }}")
 
         try:
             with session_scope() as sessao:
@@ -227,7 +227,7 @@ class UsuarioDialog(QDialog):
         self.usuario_id: int | None = self._usuario_id
         self.setWindowTitle("Usuário")
         self.setMinimumWidth(430)
-        self.setStyleSheet("QDialog { background: #FFFFFF; }")
+        self.setStyleSheet(f"QDialog {{ background: {CORES['papel']}; }}")
 
         self.campo_nome = QLineEdit()
         self.campo_nome.setPlaceholderText("Nome completo")
@@ -504,7 +504,7 @@ class CadastrosTab(QWidget):
         for coluna in range(tabela.columnCount()):
             item = tabela.item(linha, coluna)
             if item is not None:
-                item.setForeground(QColor("#98A0AE"))
+                item.setForeground(QColor(CORES["tinta_fraca"]))
 
     @staticmethod
     def _selecionado(tabela: QTableWidget) -> int | None:

@@ -290,6 +290,41 @@ class Cliente(Base):
         return f"<Cliente id={self.id} nome={self.nome!r}>"
 
 
+class VinculoSocio(Base):
+    """Uma pessoa ligada a uma empresa: sócio, administrador, responsável.
+
+    As duas pontas são clientes. A empresa é sempre PJ; a pessoa costuma ser
+    PF, mas pode ser outra PJ (uma holding, por exemplo). Assim, quem abre a
+    ficha da empresa vê quem são os sócios — e o endereço deles, para quando
+    a entrega é na casa de um —, e quem abre a ficha da pessoa vê de quais
+    empresas ela faz parte.
+    """
+
+    __tablename__ = "vinculos_socios"
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "pessoa_id", name="uq_vinculo_empresa_pessoa"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    empresa_id: Mapped[int] = mapped_column(
+        ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    pessoa_id: Mapped[int] = mapped_column(
+        ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Texto livre e curto: "Sócio", "Sócia-administradora", "Procurador".
+    papel: Mapped[str] = mapped_column(String(60), nullable=False, default="Sócio")
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    empresa: Mapped[Cliente] = relationship(foreign_keys=[empresa_id], lazy="joined")
+    pessoa: Mapped[Cliente] = relationship(foreign_keys=[pessoa_id], lazy="joined")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<VinculoSocio empresa={self.empresa_id} pessoa={self.pessoa_id}>"
+
+
 class Endereco(Base):
     """Um endereço do cliente. Pode ter quantos precisar, de cada tipo."""
 

@@ -65,7 +65,7 @@ class TelaAbertura(QFrame):
         self.setObjectName("abertura")
         self.setFixedSize(520, 320)
         self.setStyleSheet(
-            f"QFrame#abertura {{ background: {CORES['marca']};"
+            f"QFrame#abertura {{ background: {marca_visual.AZUL_MARCA};"
             " border: 1px solid #2E4677; }"
             "QFrame#abertura QLabel { background: transparent; }"
         )

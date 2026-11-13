@@ -1,4 +1,5 @@
-"""Verifica o PDF: logotipo, cores da marca, folha deitada e versão celular."""
+"""Verifica o PDF: cabeçalho e rodapé, cores da marca, atrasados, folha deitada
+e versão celular."""
 
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from app.ui.estilo import CORES  # noqa: E402
 from app.ui.relatorio_pdf import (  # noqa: E402
     FORMATOS,
     FormatoPdf,
+    carregar_atrasados,
     carregar_dias,
     gerar_pdf,
     montar_html,
@@ -36,13 +38,23 @@ semana = carregar_dias(inicio, inicio + timedelta(days=6))
 # ---- conteúdo ------------------------------------------------------------
 html_tabela = montar_html("Teste", dia, 9.5, "tabela")
 html_lista = montar_html("Teste", dia, 8.0, "lista")
-assert 'src="marca-rotas"' in html_tabela and 'src="marca-rotas"' in html_lista
-assert 'src="fio-marca"' in html_tabela, "fio tricolor na folha larga"
-assert 'src="fio-marca"' not in html_lista, "sem fio tricolor na folha do celular"
-assert CORES["marca_clara"] not in html_tabela.split("</table>")[0], (
-    "sem faixa de fundo atrás do logotipo"
+# O logotipo e a faixa tricolor saem no cabeçalho desenhado em cada página;
+# o miolo abre com o título e os números da rota.
+assert "SERVIÇOS" in html_tabela and "MANHÃ" in html_tabela, "resumo no topo"
+assert "#203461" in html_tabela, "azul da marca no resumo"
+assert "PENDENTES DE DIAS ANTERIORES" not in html_tabela, "sem atrasados, sem seção"
+
+# Atrasados escolhidos para ir junto: seção própria, antes do dia, com a data
+# de origem em cada serviço.
+levar = dia[0][1][:2]
+html_atrasos = montar_html("Teste", dia, 9.5, "tabela", atrasados=levar)
+assert "PENDENTES DE DIAS ANTERIORES" in html_atrasos
+assert html_atrasos.index("PENDENTES DE DIAS") < html_atrasos.rindex("PANIFICADORA")
+assert "ATRASADOS SEM BAIXA" in html_atrasos, "contagem no resumo"
+assert carregar_atrasados(hoje) == [] or all(
+    e.data < hoje for e in carregar_atrasados(hoje)
 )
-assert "#203461" in html_tabela, "azul da marca no cabeçalho"
+print("ok atrasados: seção própria antes do dia e contagem no resumo")
 
 # o fio é imagem: confere as três cores direto nos pixels
 from app.ui import marca  # noqa: E402
@@ -98,13 +110,16 @@ assert FORMATOS["Celular"]["deitada"] is False
 assert FORMATOS["Celular"]["base"] < FORMATOS["A4"]["base"], "celular com corpo menor"
 print("ok formatos: A4 deitado em tabela, celular em pé e com letra menor")
 
-for nome, conteudo, formato in (
-    ("dia_a4", dia, FormatoPdf.A4),
-    ("semana_a4", semana, FormatoPdf.A4),
-    ("dia_celular", dia, FormatoPdf.CELULAR),
-    ("semana_celular", semana, FormatoPdf.CELULAR),
+for nome, conteudo, formato, atrasados in (
+    ("dia_a4", dia, FormatoPdf.A4, None),
+    ("semana_a4", semana, FormatoPdf.A4, None),
+    ("dia_a4_atrasados", dia, FormatoPdf.A4, levar),
+    ("dia_celular", dia, FormatoPdf.CELULAR, None),
+    ("semana_celular", semana, FormatoPdf.CELULAR, levar),
 ):
-    destino = gerar_pdf(SAIDA / f"{nome}.pdf", "Agenda do motoboy", conteudo, formato)
+    destino = gerar_pdf(
+        SAIDA / f"{nome}.pdf", "Agenda do motoboy", conteudo, formato, atrasados
+    )
     bruto = destino.read_bytes()
     assert b"/URI" in bruto and b"/Link" in bruto, f"{nome}: link do mapa"
     assert b"/Image" in bruto, f"{nome}: logotipo embutido"

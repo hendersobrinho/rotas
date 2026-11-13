@@ -169,6 +169,10 @@ def configurar_tabela(
     cabecalho = tabela.horizontalHeader()
     cabecalho.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     cabecalho.setHighlightSections(False)
+    # Título alinhado com o texto da coluna, e não solto no meio.
+    cabecalho.setDefaultAlignment(
+        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+    )
     if coluna_elastica is None:
         cabecalho.setStretchLastSection(True)
     else:

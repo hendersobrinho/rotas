@@ -36,6 +36,7 @@ def preparar_ambiente(pasta_dados: Path | None = None) -> None:
         "ROTAS_DIR_DADOS", str(pasta_dados or (RAIZ / "testes" / ".dados"))
     )
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    os.environ.setdefault("ROTAS_TEMA", "claro")
 
 
 def semear(com_eventos: bool = True) -> dict:

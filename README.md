@@ -127,6 +127,7 @@ app/
 │   ├── clientes.py        listar, buscar, criar, atualizar, excluir clientes
 │   ├── eventos.py         CRUD de eventos, filtros, histórico, mudança de status
 │   ├── tipos_servico.py   cadastro dos tipos
+│   ├── socios.py          vínculos de sócios entre clientes
 │   ├── solicitantes.py    cadastro de quem pede
 │   ├── usuarios.py        contas, autenticação e sessões salvas
 │   └── logs.py            gravação e consulta do registro de atividades
@@ -137,7 +138,7 @@ app/
     ├── eventos_tab.py     calendário do mês e a folha do dia
     ├── calendario.py      a grade do mês
     ├── evento_dialog.py   diálogo de inclusão e edição de um serviço
-    ├── clientes_tab.py    lista, ficha do cliente, endereços e histórico
+    ├── clientes_tab.py    lista, ficha (só leitura), cadastro e sócios
     ├── login.py           tela de entrada e 'continuar conectado'
     ├── teclado.py         estado do Caps Lock
     ├── cadastros.py       tipos de serviço, solicitantes e usuários
@@ -150,7 +151,7 @@ app/
     ├── seletor_data.py    mini calendário de dia ou semana
     ├── painel_tab.py      indicadores e gráficos do período
     ├── graficos.py        barras desenhadas com QPainter
-    ├── relatorio_pdf.py   emissão do PDF da agenda
+    ├── relatorio_pdf.py   PDF da rota: cabeçalho, rodapé e atrasados
     ├── datas.py           datas em português, agrupamento e intervalos
     ├── widgets.py         etiquetas, botões segmentados, tabelas e endereço
     └── mensagens.py       caixas de erro e confirmação
@@ -182,28 +183,49 @@ A regra é: `ui/` nunca fala com o banco direto — sempre passa pelo
 
 ### Clientes
 
+A tela de clientes é feita em três passos, um de cada vez:
+
+1. **Lista** — todos os clientes, com busca (nome, apelido, telefone, cidade
+   ou bairro, sem ligar para acento) e o filtro *Todos · Empresas · Pessoas*.
+   A coluna *Vínculos* mostra quantos sócios a empresa tem, ou de quantas
+   empresas a pessoa faz parte. Clicar no cliente abre a ficha.
+2. **Ficha** — o cliente como ele é, **só para ler**: contato e observação,
+   os endereços, os sócios (ou as empresas), os serviços automáticos e o
+   histórico. Nada se edita por engano aqui.
+3. **Cadastro** — o formulário, aberto pelo *Novo cliente* da lista ou pelo
+   *Editar cadastro* da ficha. *Salvar cliente* grava e volta para a ficha;
+   *Cancelar* volta sem mexer em nada.
+
+Regras do cadastro:
+
 - Tipo **PF** ou **PJ**; o campo *Nome* guarda o nome completo ou a razão social.
-- O *apelido / nome social* é o que aparece nas listas e nos combos.
-- Cada cliente tem **quantos endereços precisar**. O botão *Adicionar
-  endereço*, no alto do cartão, acrescenta um bloco; o *Remover* de cada um
-  tira. Cada endereço tem um tipo (residencial ou comercial) e um **nome** —
-  *Matriz*, *Filial Barreiro*, *Depósito* —, que é como ele aparece na hora de
-  marcar um serviço e nos relatórios. Dois endereços do mesmo tipo com o mesmo
-  nome não passam, senão ninguém os distingue na lista.
+- O *apelido / fantasia* é o que aparece nas listas e nos combos.
+- Cada cliente tem **quantos endereços precisar**. *Adicionar endereço*
+  acrescenta um bloco; o *Remover* de cada um tira. Cada endereço tem um tipo
+  (residencial ou comercial) e um **nome** — *Matriz*, *Filial Barreiro*,
+  *Depósito* —, que é como ele aparece na hora de marcar um serviço e nos
+  relatórios. Dois endereços do mesmo tipo com o mesmo nome não passam.
 - Um bloco deixado inteiramente em branco é ignorado, e um endereço removido da
   tela sai do banco quando você salva.
-- A busca filtra por nome **ou** apelido, sem diferenciar maiúsculas e acentos
-  de caixa (`ILIKE`).
-- A ficha abre **só para leitura**: dá para passear pela lista vendo os dados
-  sem risco de mexer em nada. O botão *Editar cliente*, no topo da ficha, é que
-  libera os campos — e enquanto você edita, a lista fica travada até salvar ou
-  descartar.
-- O **histórico** fica na terceira coluna, sempre visível: são os serviços do
-  cliente, do mais recente para o mais antigo. Clicar duas vezes numa linha
-  abre aquele dia na agenda.
-- O histórico pode ser agrupado por **semana**, **mês** ou **ano**. Cada
-  período vira uma faixa com o rótulo e a quantidade de serviços; nada é
-  escondido, só organizado. A semana começa no domingo, igual ao calendário.
+- O **histórico** são os serviços do cliente, do mais recente para o mais
+  antigo, agrupados por **semana**, **mês** ou **ano**. Dois cliques numa linha
+  abrem aquele dia na agenda.
+
+#### Sócios
+
+Uma empresa (PJ) pode ter **pessoas ligadas a ela** — sócio,
+sócio-administrador, procurador, responsável (o papel é texto livre, com
+sugestões). A pessoa precisa estar cadastrada como cliente, normalmente PF.
+
+- Na ficha da **empresa**, o cartão *Sócios e responsáveis* lista cada pessoa
+  com o papel, o telefone e os endereços — para quando a entrega é na casa de
+  um sócio. *Vincular sócio* escolhe a pessoa.
+- Na ficha da **pessoa**, o cartão *Empresas* mostra de quais empresas ela faz
+  parte; *Vincular a empresa* faz o caminho inverso.
+- Cada vínculo tem *Abrir ficha*, *Papel* e *Desvincular*. Desfazer o vínculo
+  não mexe nos dois cadastros; excluir um cliente desfaz os vínculos dele.
+- Uma PJ também pode ser sócia de outra (holding): aparece no cartão *Faz
+  parte de* da ficha dela.
 
 ### Importar clientes por planilha
 
@@ -350,10 +372,14 @@ botão vermelho com a contagem, que abre a lista dos serviços não realizados s
 remarcação — de lá dá para resolver um por um. Sem pendência, o botão nem
 aparece.
 
-### Baixas
+### Rota e baixas
 
-O quadro de **Baixas** junta as rotas que ainda esperam confirmação, em quatro
-colunas:
+A tela **Rota e baixas** é onde a rota sai e onde se acompanha o que ainda
+espera confirmação. No topo, o botão **Emitir rota** e os **filtros**: cliente
+ou endereço, tipo de serviço e período (dia todo, manhã, tarde). Os filtros só
+escondem cartões — o contador da barra lateral continua contando tudo.
+
+O quadro tem quatro colunas:
 
 - **Atrasados** — dias que já passaram com o serviço ainda pendente: ninguém
   confirmou se o motoboy foi. Mais antigos em cima, com "há N dias";
@@ -364,13 +390,15 @@ colunas:
 
 O cartão muda de coluna **arrastando** ou pelos botões dele (*Dar baixa*, *Não
 deu*, *Remarcar*, *Desfazer*); dois cliques abrem o serviço. Os atrasados têm
-*Baixar todos*, com confirmação. O item **Baixas** da barra lateral mostra quantos
-pedem ação (atrasados + não realizados), e o botão *Sem baixa* da agenda leva
-ao quadro.
+*Baixar todos* (os que estão à vista, com o filtro), com confirmação. O item da
+barra lateral mostra quantos pedem ação (atrasados + não realizados), e o botão
+*Sem baixa* da agenda leva para cá.
 
-No caminho do PDF também: se houver atrasados ou não realizados, a tela de
-*Emitir PDF* avisa antes de mandar a rota nova para a rua, com o atalho *Ver
-baixas*. O aviso não impede de emitir.
+**Emitir rota com os atrasados**: quando há serviços de dias anteriores sem
+baixa, a janela de *Emitir rota* mostra quantos são e oferece **Incluir os
+atrasados na rota** (marcado por padrão). Marcado, o PDF ganha uma seção
+*Pendentes de dias anteriores* antes do dia, com a data de origem de cada
+serviço — assim o motoboy leva junto o que ficou para trás.
 
 No **calendário**, só o que está em aberto fica com a cor do tipo de serviço:
 o que já teve baixa fica **verde com ✓**, o não realizado vermelho com ✕ e o
@@ -414,40 +442,42 @@ O registro só recebe linhas novas — nada é alterado nem apagado por ali. O n
 de quem fez é copiado para a linha, então excluir um usuário não apaga o rastro
 do que ele fez.
 
-### PDF da agenda
+### PDF da rota
 
-O botão *Emitir PDF* aparece no cabeçalho do mês e na folha do dia. A escolha do
-que sai é feita num mini calendário: no modo **Dia** o clique marca o dia; no
-modo **Semana**, a linha inteira acende e sai a semana toda (de domingo a
-sábado, igual ao calendário da agenda). Dois formatos:
+*Emitir rota* fica na tela **Rota e baixas** e também na agenda (no mês e na
+folha do dia). A escolha do que sai é feita num mini calendário: no modo
+**Dia** o clique marca o dia; no modo **Semana**, sai a semana toda (de
+domingo a sábado). Dois formatos:
 
-- **A4 deitado**, em tabela: uma linha por serviço, com colunas de serviço,
-  cliente, endereço, quem pediu e situação. A largura da folha horizontal é o
-  que permite ver tudo de um serviço sem quebrar linha;
+- **A4 deitado**, em tabela: uma linha por serviço, com colunas de período,
+  serviço, cliente, endereço, quem pediu e situação;
 - **Celular**, uma página estreita (95 × 170 mm) em formato de lista, com corpo
   pequeno para caber bastante coisa na tela do telefone.
 
-Os serviços saem **agrupados por cidade e, dentro dela, por bairro** — que é a
-ordem em que a rota anda. Cada bloco traz a contagem, e o período (manhã ou
-tarde) vira etiqueta em cada serviço.
+**Toda página** tem cabeçalho e rodapé:
 
-A folha abre com uma faixa azul: o nome, o período e pastilhas com a contagem
-por tipo de serviço. No PDF da semana, cada dia com serviço ganha o número num
-selo escuro; os dias vazios viram uma linha discreta, para não comerem meia
-página. Cada período tem sua faixa (☀ manhã, ☾ tarde) e cada serviço uma barra
-na cor do seu tipo.
+- **cabeçalho** — o logotipo, *Rota do motoboy* com o período por extenso, a
+  hora da emissão e o total de serviços (na folha larga), fechado pela faixa
+  tricolor da marca de ponta a ponta;
+- **rodapé** — o símbolo da marca, *emitido em … por …* e a numeração
+  *página 1 / 3* numa pastilha marinho.
 
-Cada serviço sai com quadradinho para marcar, o tipo numa pastilha colorida, a
-**razão social ou nome completo** em destaque, o *tratar por* (o apelido, quando é diferente do nome),
-o endereço, o telefone, a situação, quem pediu e as **observações** do cliente e
-do endereço, quando houver.
+A primeira página abre com o título e os **números da rota**: total, manhã,
+tarde e, se foram incluídos, os atrasados — e pastilhas com a contagem por tipo
+de serviço. Depois vêm os atrasados (se incluídos) e os serviços do dia,
+**agrupados por cidade e, dentro dela, por bairro** — a ordem em que a rota
+anda. No PDF da semana, cada dia ganha o número num selo marinho; os dias
+vazios viram uma linha discreta.
 
-O endereço é um **link**: tocando nele no celular, o mapa abre já com o destino
-preenchido — é o que leva direto ao GPS.
+Cada serviço sai com quadradinho para marcar, o tipo numa pastilha colorida, o
+período, a **razão social ou nome completo** em destaque, o *tratar por*, o
+endereço, o telefone, a situação, quem pediu e as **observações** do cliente e
+do endereço. O endereço é um **link**: tocando nele no celular, o mapa abre já
+com o destino.
 
-O PDF é vetorial (fontes embutidas, nada rasterizado), e o desenho é feito numa
-grade de 300 dpi: não muda o texto, que é vetor de qualquer jeito, mas deixa as
-réguas como fios de 0,085 mm em vez dos traços de 0,34 mm que saíam antes.
+O PDF sai sempre nas **cores do tema claro**, mesmo com o programa no escuro —
+ele vai para o papel. É vetorial (fontes embutidas), desenhado numa grade de
+300 dpi, com fios finos de verdade.
 
 ## Visual
 
@@ -472,9 +502,24 @@ atualização quando houver e o cartão de quem está conectado. Ao abrir, uma
 a **tela de entrada** tem o painel marinho da marca ao lado do formulário.
 
 Os dados continuam com a própria paleta (os quatro tons dos tipos de serviço),
-que passou pela validação de daltonismo. O app tem tema claro próprio e não
-acompanha o tema escuro do sistema: paleta, fontes e folha de estilo ficam em
-`app/ui/estilo.py`.
+que passou pela validação de daltonismo.
+
+### Tema escuro
+
+O botão de **lua** no pé da barra lateral troca para o tema escuro (e o de
+**sol** volta para o claro). A escolha fica guardada no computador, por
+usuário do Windows; a janela é remontada na mesma tela, sem pedir login.
+
+O escuro foi feito para **não cansar a vista**: fundo azul-noite em vez de
+preto, texto gelo em vez de branco puro, e contraste medido — texto principal
+perto de 13:1, o mais apagado acima de 5:1. As cores dos tipos de serviço e
+das situações têm versões próprias para o fundo escuro, e o âmbar continua
+sendo o botão principal. A tela de abertura, o painel da entrada e o PDF ficam
+nas cores da marca nos dois temas.
+
+As duas paletas (`CORES_CLARAS` e `CORES_ESCURAS`) ficam em
+`app/ui/estilo.py`. `ROTAS_TEMA=claro` (ou `escuro`) força um tema e não
+grava a escolha — é o que os testes usam.
 
 ## Conexão com o banco pela tela
 
@@ -578,7 +623,7 @@ Sai `dist\Rotas\Rotas.exe`, já com o ícone do programa, as fontes embutidas
 (Sora, Plus Jakarta Sans e JetBrains Mono não vêm no Windows) e o driver do
 PostgreSQL. Para virar instalador, abra `instalador\rotas.iss` no
 [Inno Setup](https://jrsoftware.org/isdl.php) e mande compilar: sai
-`instalador\saida\rotas-instalador-1.1.0.exe` — a versão vai no nome do
+`instalador\saida\rotas-instalador-1.2.0.exe` — a versão vai no nome do
 arquivo —, que instala para o usuário atual (sem pedir administrador) e cria
 os atalhos. O atalho, no menu e na área de trabalho, chama-se **MRotas**; o
 nome por extenso fica na dica que aparece ao passar o mouse.

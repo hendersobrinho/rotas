@@ -51,7 +51,7 @@ class _Celula(QLabel):
         self.setText(str(dia.day))
 
         if escolhido:
-            fundo, cor, peso = CORES["azul"], "#FFFFFF", 600
+            fundo, cor, peso = CORES["marca"], CORES["sobre_marca"], 600
         elif not do_mes:
             fundo, cor, peso = "transparent", CORES["tinta_fraca"], 400
         else:

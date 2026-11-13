@@ -36,13 +36,15 @@ from app.ui.widgets import (
 COLUNAS = ("Quando", "Usuário", "Ação", "Sobre", "O que aconteceu")
 LIMITE = 500
 
-COR_ACAO = {
-    AcaoLog.LOGIN: CORES["verde"],
-    AcaoLog.LOGOUT: CORES["tinta_fraca"],
-    AcaoLog.CRIACAO: CORES["azul"],
-    AcaoLog.ALTERACAO: CORES["carimbo"],
-    AcaoLog.EXCLUSAO: CORES["vermelho"],
-}
+def _cor_acao(acao: AcaoLog) -> str:
+    chave = {
+        AcaoLog.LOGIN: "verde",
+        AcaoLog.LOGOUT: "tinta_fraca",
+        AcaoLog.CRIACAO: "azul",
+        AcaoLog.ALTERACAO: "carimbo",
+        AcaoLog.EXCLUSAO: "vermelho",
+    }[acao]
+    return CORES[chave]
 
 
 class RegistroTab(QWidget):
@@ -184,7 +186,7 @@ class RegistroTab(QWidget):
             )
             item = self.tabela.item(linha, 2)
             if item is not None:
-                item.setForeground(QColor(COR_ACAO[registro.acao]))
+                item.setForeground(QColor(_cor_acao(registro.acao)))
 
         if len(registros) >= LIMITE:
             self.contador.setText(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import timedelta
 
 from comum import preparar_ambiente, semear
@@ -17,6 +18,7 @@ app = QApplication([])
 from app import sessao as sessao_app  # noqa: E402
 from app.db import session_scope  # noqa: E402
 from app.models import Periodo, StatusEvento  # noqa: E402
+from app.repository import clientes as repo_clientes  # noqa: E402
 from app.repository import eventos as repo_eventos  # noqa: E402
 from app.repository import usuarios as repo_usuarios  # noqa: E402
 from app.ui import login as tela_login  # noqa: E402
@@ -46,7 +48,9 @@ def entrada() -> None:
     dialogo._entrar()
     assert dialogo.usuario is not None
     arquivo = sessao_app.caminho_do_arquivo()
-    assert arquivo.exists() and oct(arquivo.stat().st_mode)[-3:] == "600"
+    assert arquivo.exists()
+    if os.name != "nt":  # no Windows a proteção é a pasta do usuário
+        assert oct(arquivo.stat().st_mode)[-3:] == "600"
     assert tela_login.entrar_pelo_token() is not None, "entra sem digitar senha"
     esquecer_neste_computador()
     assert not arquivo.exists()
@@ -75,34 +79,90 @@ def entrada() -> None:
 
 
 def clientes(janela: MainWindow) -> None:
+    """Lista → ficha (só leitura) → cadastro, e os vínculos de sócio."""
+    from app.models import TipoCliente
+    from app.repository import socios as repo_socios
+    from app.ui.clientes_tab import ClientesTab, FiltroTipo, LinhaVinculo
+
     aba = janela.aba_clientes
     janela.abas.setCurrentIndex(MainWindow.ABA_CLIENTES)
     app.processEvents()
+    assert aba.pilha.currentIndex() == ClientesTab.PAGINA_LISTA, "abre na lista"
+    total = aba.tabela.rowCount()
+
+    aba.filtro_tipo.definir_valor(FiltroTipo.PF)
+    aba._desenhar_lista()
+    pessoas = aba.tabela.rowCount()
+    assert 0 < pessoas < total, "filtro de pessoas"
+    aba.filtro_tipo.definir_valor(FiltroTipo.TODOS)
+    aba.busca.setText("belo horizonte")
+    assert 0 < aba.tabela.rowCount() < total, "busca pela cidade"
+    aba.busca.clear()
+    assert aba.tabela.rowCount() == total
+
     aba.tabela.selectRow(0)
     app.processEvents()
+    assert aba.pilha.currentIndex() == ClientesTab.PAGINA_FICHA, "clique abre a ficha"
     assert aba._cliente_id is not None and not aba._editando
-    formularios = aba._formularios_endereco()
-    assert aba.nome.isReadOnly()
-    assert all(f.logradouro.isReadOnly() for f in formularios)
-    assert aba.btn_editar.isVisibleTo(janela) and not aba.btn_salvar.isVisibleTo(janela)
-
-    aba.tabela.selectRow(1)
-    app.processEvents()
-    assert not aba._editando, "navegar não abre a edição"
+    assert aba.btn_editar.isVisibleTo(janela)
+    assert not aba.btn_salvar.isVisibleTo(janela), "ficha não tem Salvar"
 
     aba._editar()
+    assert aba.pilha.currentIndex() == ClientesTab.PAGINA_CADASTRO
     assert aba._editando and not aba.nome.isReadOnly()
-    assert all(
-        not f.logradouro.isReadOnly() for f in aba._formularios_endereco()
-    )
-
-    assert not aba.tabela.isEnabled(), "lista travada durante a edição"
     antes = aba.telefone.text()
     aba.telefone.setText("(31) 4002-8922")
     aba._descartar()
     app.processEvents()
+    assert aba.pilha.currentIndex() == ClientesTab.PAGINA_FICHA, "cancelar volta à ficha"
     assert aba.telefone.text() == antes and not aba._editando
-    print("ok clientes: ficha só de leitura até o botão, e descartar desfaz")
+    print("ok clientes: lista com filtros, ficha só de leitura, cadastro à parte")
+
+    aba.voltar_para_lista()
+    aba._novo()
+    assert aba.pilha.currentIndex() == ClientesTab.PAGINA_CADASTRO
+    aba._descartar()
+    assert aba.pilha.currentIndex() == ClientesTab.PAGINA_LISTA, "novo cancelado volta à lista"
+
+    # ---- sócios: a pessoa ligada à empresa, vista dos dois lados
+    with session_scope() as sessao:
+        todos = repo_clientes.listar_clientes(sessao)
+        empresa = next(c for c in todos if c.tipo is TipoCliente.PJ and c.enderecos)
+        pessoa = next(c for c in todos if c.tipo is TipoCliente.PF)
+        vinculo = repo_socios.vincular(sessao, empresa.id, pessoa.id, "sócia-administradora")
+        vinculo_id = vinculo.id
+        assert vinculo.papel == "Sócia-administradora"
+        for errado in ((pessoa.id, empresa.id), (empresa.id, empresa.id),
+                       (empresa.id, pessoa.id)):
+            try:
+                repo_socios.vincular(sessao, *errado)
+            except ValueError:
+                continue
+            raise AssertionError(f"vínculo inválido aceito: {errado}")
+
+    aba.recarregar()
+    aba._abrir(empresa.id)
+    app.processEvents()
+    linhas = [
+        aba.lista_vinculos.itemAt(i).widget()
+        for i in range(aba.lista_vinculos.count())
+    ]
+    assert any(isinstance(w, LinhaVinculo) for w in linhas), "sócio na ficha da empresa"
+    assert aba.titulo_socios.text() == "Sócios e responsáveis"
+    aba._abrir(pessoa.id)
+    app.processEvents()
+    assert aba.titulo_socios.text() == "Empresas"
+    assert aba.lista_vinculos.count() == 1, "a empresa na ficha da pessoa"
+    textos = [
+        aba.tabela.item(l, 4).text() for l in range(aba.tabela.rowCount())
+    ]
+    assert "1 sócio" in textos and "1 empresa" in textos, textos
+
+    with session_scope() as sessao:
+        repo_socios.desvincular(sessao, vinculo_id)
+        assert repo_socios.vinculos_do_cliente(sessao, empresa.id) == []
+    aba._abrir(empresa.id)
+    print("ok sócios: vínculo aparece na empresa e na pessoa, e desfaz")
 
     historico = aba.tabela_historico
     assert historico.rowCount() >= 0
@@ -110,6 +170,7 @@ def clientes(janela: MainWindow) -> None:
         type(aba.campo_agrupamento.valor())["ANO"]
     )
     aba._desenhar_historico()
+    aba.voltar_para_lista()
     print("ok histórico agrupado por ano")
 
 
@@ -300,6 +361,26 @@ def baixas(janela: MainWindow) -> None:
         )
     print("ok baixas: atrasado no quadro, arrastar para Baixados conclui")
 
+    # Filtros: escondem cartões sem mexer no contador da barra lateral.
+    quadro.busca.setText("ninguém com esse nome")
+    app.processEvents()
+    assert ids(BAIXADOS) == [] and quadro.limpar_filtros.isVisibleTo(janela)
+    quadro._limpar_filtros()
+    assert atrasado_id in ids(BAIXADOS)
+    print("ok baixas: filtro por cliente e limpar filtros")
+
+    from app.ui import relatorio_pdf
+
+    dialogo = relatorio_pdf.RelatorioDialog(quadro, hoje, atalho_baixas=False)
+    assert dialogo.windowTitle() == "Emitir rota"
+    if not dialogo.tarja.isHidden():
+        assert dialogo.incluir_atrasados.isChecked(), "atrasados vão junto por padrão"
+        assert dialogo.atrasados_escolhidos()
+        dialogo.incluir_atrasados.setChecked(False)
+        assert dialogo.atrasados_escolhidos() == []
+    dialogo.deleteLater()
+    print("ok emitir rota: opção de levar os atrasados")
+
 
 def lembrancinhas(janela: MainWindow) -> None:
     from app.models import SituacaoLembrancinha
@@ -351,6 +432,31 @@ def lembrancinhas(janela: MainWindow) -> None:
     print("ok lembrancinhas: cadastro, entrega por ano, filtro e exportação")
 
 
+def tema() -> None:
+    """Tema escuro: monta a janela inteira; o PDF continua com cores claras."""
+    from app.ui import estilo
+    from app.ui.relatorio_pdf import carregar_dias, montar_html
+
+    estilo.aplicar_tema(app, estilo.ESCURO)
+    try:
+        assert estilo.escuro() and estilo.CORES["canvas"] == "#0E1526"
+        escura = MainWindow()
+        for indice in range(escura.abas.count()):
+            escura.abas.setCurrentIndex(indice)
+            app.processEvents()
+        assert escura.btn_tema.toolTip().startswith("Voltar"), "botão oferece o claro"
+        html = montar_html("Teste", carregar_dias(hoje, hoje), 9.5, "tabela")
+        assert estilo.CORES_ESCURAS["canvas"] not in html
+        assert estilo.CORES_CLARAS["marca"] in html, "PDF sempre no claro"
+        estilo.salvar_tema = lambda _nome: None  # não grava a preferência real
+        escura.alternar_tema()
+        assert escura.trocou_tema
+        app.processEvents()
+    finally:
+        estilo.aplicar_tema(app, estilo.CLARO)
+    print("ok tema escuro: janela inteira monta, PDF segue claro")
+
+
 def conexao() -> None:
     """A tela de conexão lê, testa e grava sem estragar o resto do .env."""
     import os
@@ -388,7 +494,8 @@ def conexao() -> None:
         assert "# comentário que precisa sobreviver" in gravado
         assert "ROTAS_SQL_ECHO=0" in gravado, "o que não é conexão fica"
         assert "ROTAS_DB_NAME=" in gravado and "ROTAS_DB_USER=" in gravado
-        assert oct(temporario.stat().st_mode)[-3:] == "600", "senha não fica legível"
+        if os.name != "nt":
+            assert oct(temporario.stat().st_mode)[-3:] == "600", "senha não fica legível"
     finally:
         configuracao.ARQUIVO = original
         os.environ.clear()
@@ -412,6 +519,7 @@ escolhas()
 cadastros_e_painel(janela)
 baixas(janela)
 lembrancinhas(janela)
+tema()
 
 with session_scope() as sessao:
     assert repo_usuarios.existe_algum(sessao)

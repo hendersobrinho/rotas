@@ -147,7 +147,7 @@ class LinhaEvento(QFrame):
                 f"background: {CORES['verde_claro']}; color: {CORES['verde']};"
                 f"border: 1px solid {CORES['verde_borda']};"
             )
-            passagem = f"background: {CORES['verde']}; color: #FFFFFF;"
+            passagem = f"background: {CORES['verde']}; color: {CORES['papel']};"
         else:
             botao.setToolTip("Voltar para pendente")
             novo = StatusEvento.PENDENTE
@@ -248,7 +248,7 @@ class EventosTab(QWidget):
         self.btn_pendencias.setVisible(False)
         self.calendario.adicionar_acao(self.btn_pendencias)
 
-        pdf = QPushButton("Emitir PDF")
+        pdf = QPushButton("Emitir rota")
         marcar(pdf, variante="marinho")
         pdf.clicked.connect(lambda: self._emitir_pdf(None))
         self.calendario.adicionar_acao(pdf)
@@ -269,7 +269,7 @@ class EventosTab(QWidget):
         marcar(self.titulo_dia, papel="titulo")
         self.resumo_dia = rotulo("", "fraco")
 
-        pdf = QPushButton("Emitir PDF")
+        pdf = QPushButton("Emitir rota")
         pdf.clicked.connect(lambda: self._emitir_pdf(self._dia))
 
         novo = QPushButton("Incluir serviço")

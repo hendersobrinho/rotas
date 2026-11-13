@@ -38,6 +38,7 @@ from app.models import Cliente, DestinatarioLembrancinha, SituacaoLembrancinha
 from app.repository import clientes as repo_clientes
 from app.repository import lembrancinhas as repo
 from app.schemas import DadosDestinatario
+from app.ui import marca as marca_visual
 from app.ui.estilo import CORES, FONTE_DADOS, FONTE_TITULO, marcar
 from app.ui.mensagens import confirmar, mostrar_erro
 from app.ui.widgets import (
@@ -48,11 +49,13 @@ from app.ui.widgets import (
     rotulo,
 )
 
-COR_SITUACAO = {
-    SituacaoLembrancinha.A_ENTREGAR: (CORES["carimbo"], CORES["carimbo_claro"]),
-    SituacaoLembrancinha.ENTREGUE: (CORES["verde"], CORES["verde_claro"]),
-    SituacaoLembrancinha.NAO_ENVIAR: (CORES["tinta_media"], CORES["cinza_claro"]),
-}
+def _cor_situacao(situacao: SituacaoLembrancinha) -> tuple[str, str]:
+    """Lida na hora: as cores mudam com o tema."""
+    return {
+        SituacaoLembrancinha.A_ENTREGAR: (CORES["carimbo"], CORES["carimbo_claro"]),
+        SituacaoLembrancinha.ENTREGUE: (CORES["verde"], CORES["verde_claro"]),
+        SituacaoLembrancinha.NAO_ENVIAR: (CORES["tinta_media"], CORES["cinza_claro"]),
+    }[situacao]
 GLIFO_SITUACAO = {
     SituacaoLembrancinha.A_ENTREGAR: "●",
     SituacaoLembrancinha.ENTREGUE: "✓",
@@ -468,7 +471,7 @@ class LembrancinhasTab(QWidget):
         self.barra.setRange(0, max(1, a_considerar))
         self.barra.setValue(entregues)
         for situacao, etiqueta in self.contadores.items():
-            cor, _fundo = COR_SITUACAO[situacao]
+            cor, _fundo = _cor_situacao(situacao)
             etiqueta.setText(
                 f'<span style="color:{cor}; font-weight:700;">{GLIFO_SITUACAO[situacao]}'
                 f'</span>&nbsp; {situacao.value}&nbsp; <span style="font-family:'
@@ -522,7 +525,7 @@ class LembrancinhasTab(QWidget):
             etiqueta.definir("Fora da lista", CORES["tinta_fraca"], CORES["cinza_claro"])
         else:
             situacao = destinatario.situacao_no_ano(self.ano)
-            cor, fundo = COR_SITUACAO[situacao]
+            cor, fundo = _cor_situacao(situacao)
             texto = f"{GLIFO_SITUACAO[situacao]}  {situacao.value}"
             entrega = destinatario.entrega_do_ano(self.ano)
             if entrega is not None and entrega.entregue_em is not None:
@@ -703,7 +706,7 @@ def exportar(caminho: str, destinatarios: list[DestinatarioLembrancinha], ano: i
         aba.append(linha)
     for celula in aba[1]:
         celula.font = Font(bold=True, color="FFFFFF")
-        celula.fill = PatternFill("solid", fgColor=CORES["marca"].lstrip("#"))
+        celula.fill = PatternFill("solid", fgColor=marca_visual.AZUL_MARCA.lstrip("#"))
     for indice, largura in enumerate(
         (36, 22, 16, 20, 34, 9, 18, 20, 18, 11, 14, 12, 30), start=1
     ):

@@ -30,7 +30,8 @@ FONTE_UI = "Plus Jakarta Sans"
 FONTE_TITULO = "Sora"
 FONTE_DADOS = "JetBrains Mono"
 
-CORES = {
+# Tema claro: a marca como foi desenhada.
+CORES_CLARAS = {
     "canvas": NEVOA,
     "papel": "#FFFFFF",
     "papel_suave": "#F9FAFC",
@@ -39,13 +40,15 @@ CORES = {
     "tinta": AZUL_TINTA,
     "tinta_media": ARDOSIA,
     "tinta_fraca": "#8C96AD",
-    # "azul" é o acento de interação: o marinho da marca.
+    # "azul" é o acento de texto e interação; "marca" é o marinho de fundo.
+    # No claro são a mesma cor; no escuro o texto precisa ser mais claro.
     "azul": AZUL_MARCA,
     "azul_escuro": AZUL_TINTA,
     "azul_claro": AZUL_MARCA_CLARO,
     # Âmbar escuro o bastante para ser texto (5,3:1 no branco).
     "carimbo": "#8A5300",
     "carimbo_claro": LARANJA_CLARO,
+    "alerta_borda": "#F6D3A4",
     "verde": "#15734A",
     "verde_claro": "#E2F4EA",
     "verde_borda": "#BFE3CF",
@@ -53,18 +56,78 @@ CORES = {
     "vermelho": "#B42318",
     "vermelho_claro": "#FDECEA",
     "marca": AZUL_MARCA,
+    "marca_hover": AZUL_TINTA,
     "marca_clara": AZUL_MARCA_CLARO,
+    "sobre_marca": "#FFFFFF",
     "ciano": CIANO,
     "ciano_claro": CIANO_CLARO,
     "laranja": LARANJA,
     "laranja_hover": "#F4A23E",
     "laranja_claro": LARANJA_CLARO,
+    # Texto em cima do âmbar: a tinta escura, nos dois temas.
+    "sobre_laranja": AZUL_TINTA,
+    "primario_off": "#FBE0BC",
+    "primario_off_texto": "#A89A86",
+    "dica_fundo": AZUL_TINTA,
+    "dica_texto": "#FFFFFF",
     # Barra lateral
     "lateral": AZUL_MARCA,
     "lateral_texto": "#B9C4DE",
+    "lateral_fraco": "#7F8FB6",
+    "lateral_borda": "#3A5287",
     "lateral_hover": "#2A4174",
     "lateral_ativo": "#30497F",
 }
+
+# Tema escuro: azul-noite em vez de preto e texto gelo em vez de branco puro.
+# Contraste alto o bastante para ler sem esforço (texto principal ~13:1, o
+# mais apagado ~5:1), mas sem o branco estourado que cansa a vista.
+CORES_ESCURAS = {
+    "canvas": "#0E1526",
+    "papel": "#161F33",
+    "papel_suave": "#1B2539",
+    "pauta": "#2A3650",
+    "pauta_forte": "#3A4865",
+    "tinta": "#E4E9F2",
+    "tinta_media": "#AEB8CC",
+    "tinta_fraca": "#8390AA",
+    "azul": "#8DB0F0",
+    "azul_escuro": "#C9D8F7",
+    "azul_claro": "#22345A",
+    "carimbo": "#F5B45E",
+    "carimbo_claro": "#382B17",
+    "alerta_borda": "#6B4E22",
+    "verde": "#62D29C",
+    "verde_claro": "#163628",
+    "verde_borda": "#265840",
+    "cinza_claro": "#222D44",
+    "vermelho": "#F4877D",
+    "vermelho_claro": "#3E1E22",
+    "marca": "#3D63A8",
+    "marca_hover": "#4A72BA",
+    "marca_clara": "#22345A",
+    "sobre_marca": "#FFFFFF",
+    "ciano": CIANO,
+    "ciano_claro": "#15363F",
+    "laranja": LARANJA,
+    "laranja_hover": "#FBC27A",
+    "laranja_claro": "#382B17",
+    "sobre_laranja": AZUL_TINTA,
+    "primario_off": "#4A3D28",
+    "primario_off_texto": "#9A8E7A",
+    "dica_fundo": "#E4E9F2",
+    "dica_texto": AZUL_TINTA,
+    "lateral": "#0A101E",
+    "lateral_texto": "#A9B5CF",
+    "lateral_fraco": "#6E7C99",
+    "lateral_borda": "#24314C",
+    "lateral_hover": "#16213A",
+    "lateral_ativo": "#1E2C4A",
+}
+
+# As telas leem CORES na hora de se montar. Trocar de tema atualiza este
+# dicionário no lugar (ver definir_tema) e remonta a janela.
+CORES: dict[str, str] = dict(CORES_CLARAS)
 
 # Paleta oferecida no cadastro de tipos de serviço.
 #
@@ -78,22 +141,35 @@ CORES = {
 # Cada entrada é (cor do texto, fundo da pastilha, preenchimento de barra,
 # glifo, nome). O texto é mais escuro que a barra: pastilha pede contraste de
 # leitura (5,6:1 ou mais aqui), barra pede contraste de mancha.
-PALETA_ETIQUETA: dict[str, tuple[str, str, str, str, str]] = {
+PALETA_CLARA: dict[str, tuple[str, str, str, str, str]] = {
     "azul": ("#1B4AA0", "#E9EEFC", "#1E56B8", "●", "Azul"),
     "laranja": ("#8F3310", "#FBEDE5", "#C2410C", "▲", "Laranja"),
     "verde": ("#0B6B56", "#E3F3EF", "#0E8A6E", "■", "Verde"),
     "roxo": ("#6425D0", "#F2EDFE", "#7E3AF2", "◆", "Roxo"),
 }
+# No escuro a lógica inverte: texto claro sobre fundo escuro da mesma família.
+PALETA_ESCURA: dict[str, tuple[str, str, str, str, str]] = {
+    "azul": ("#A3BDF5", "#1D2B4C", "#5A84D6", "●", "Azul"),
+    "laranja": ("#F5AD86", "#3A2318", "#E0743F", "▲", "Laranja"),
+    "verde": ("#74D6BE", "#14352E", "#2FA889", "■", "Verde"),
+    "roxo": ("#C6ACFB", "#2D2350", "#9B6BF5", "◆", "Roxo"),
+}
+PALETA_ETIQUETA: dict[str, tuple[str, str, str, str, str]] = dict(PALETA_CLARA)
 ESTILO_PADRAO = "azul"
 
 
-def _slot(estilo: str | None) -> tuple[str, str, str, str, str]:
-    return PALETA_ETIQUETA.get(estilo or "", PALETA_ETIQUETA[ESTILO_PADRAO])
+def _slot(
+    estilo: str | None, paleta: dict | None = None
+) -> tuple[str, str, str, str, str]:
+    paleta = PALETA_ETIQUETA if paleta is None else paleta
+    return paleta.get(estilo or "", paleta[ESTILO_PADRAO])
 
 
-def cores_da_etiqueta(estilo: str | None) -> tuple[str, str]:
+def cores_da_etiqueta(
+    estilo: str | None, paleta: dict | None = None
+) -> tuple[str, str]:
     """Cor do texto e do fundo da pastilha de um tipo de serviço."""
-    texto, fundo, _, _, _ = _slot(estilo)
+    texto, fundo, _, _, _ = _slot(estilo, paleta)
     return texto, fundo
 
 
@@ -110,12 +186,79 @@ def nome_da_etiqueta(estilo: str | None) -> str:
     return _slot(estilo)[4]
 
 
-COR_STATUS = {
-    StatusEvento.PENDENTE: (CORES["carimbo"], CORES["carimbo_claro"]),
-    StatusEvento.CONCLUIDO: (CORES["verde"], CORES["verde_claro"]),
-    StatusEvento.NAO_REALIZADO: (CORES["vermelho"], CORES["vermelho_claro"]),
-    StatusEvento.CANCELADO: (CORES["tinta_fraca"], CORES["cinza_claro"]),
-}
+def _cores_de_status(cores: dict[str, str]) -> dict:
+    return {
+        StatusEvento.PENDENTE: (cores["carimbo"], cores["carimbo_claro"]),
+        StatusEvento.CONCLUIDO: (cores["verde"], cores["verde_claro"]),
+        StatusEvento.NAO_REALIZADO: (cores["vermelho"], cores["vermelho_claro"]),
+        StatusEvento.CANCELADO: (cores["tinta_fraca"], cores["cinza_claro"]),
+    }
+
+
+COR_STATUS = _cores_de_status(CORES)
+# O PDF vai para o papel: sai sempre com as cores do tema claro.
+COR_STATUS_CLARO = _cores_de_status(CORES_CLARAS)
+
+
+# ------------------------------------------------------------------- tema
+CLARO = "claro"
+ESCURO = "escuro"
+_tema = {"atual": CLARO}
+
+
+def tema_atual() -> str:
+    return _tema["atual"]
+
+
+def escuro() -> bool:
+    return _tema["atual"] == ESCURO
+
+
+def definir_tema(nome: str) -> None:
+    """Troca as cores no lugar: quem importou CORES passa a ver as novas."""
+    _tema["atual"] = ESCURO if nome == ESCURO else CLARO
+    noturno = _tema["atual"] == ESCURO
+    CORES.clear()
+    CORES.update(CORES_ESCURAS if noturno else CORES_CLARAS)
+    PALETA_ETIQUETA.clear()
+    PALETA_ETIQUETA.update(PALETA_ESCURA if noturno else PALETA_CLARA)
+    COR_STATUS.clear()
+    COR_STATUS.update(_cores_de_status(CORES))
+
+
+def _preferencias():
+    from PySide6.QtCore import QSettings
+
+    return QSettings("Rotas", "Rotas")
+
+
+def tema_salvo() -> str:
+    """O tema escolhido neste computador, nas preferências do usuário.
+
+    ROTAS_TEMA (claro/escuro) passa por cima — é o que os testes usam para
+    não depender da escolha de quem roda.
+    """
+    import os
+
+    forcado = os.environ.get("ROTAS_TEMA")
+    if forcado:
+        return ESCURO if forcado == ESCURO else CLARO
+    try:
+        valor = _preferencias().value("tema", CLARO)
+    except Exception:  # noqa: BLE001 - preferência nunca impede de abrir
+        return CLARO
+    return ESCURO if valor == ESCURO else CLARO
+
+
+def salvar_tema(nome: str) -> None:
+    import os
+
+    if os.environ.get("ROTAS_TEMA"):
+        return
+    try:
+        _preferencias().setValue("tema", nome)
+    except Exception:  # noqa: BLE001
+        pass
 
 # Como cada situação aparece no calendário e na folha do dia. Só o que está
 # em aberto fica com a cor do tipo de serviço; o resto ganha a cor da
@@ -150,8 +293,8 @@ def marcar(widget: QWidget, **propriedades: object) -> QWidget:
     return widget
 
 
-def _palette_clara() -> QPalette:
-    """Paleta clara fixa: o app não acompanha o tema escuro do sistema."""
+def _paleta() -> QPalette:
+    """Paleta do tema escolhido no programa (não segue o tema do sistema)."""
     p = QPalette()
     p.setColor(QPalette.ColorRole.Window, QColor(CORES["canvas"]))
     p.setColor(QPalette.ColorRole.WindowText, QColor(CORES["tinta"]))
@@ -160,10 +303,13 @@ def _palette_clara() -> QPalette:
     p.setColor(QPalette.ColorRole.Text, QColor(CORES["tinta"]))
     p.setColor(QPalette.ColorRole.Button, QColor(CORES["papel"]))
     p.setColor(QPalette.ColorRole.ButtonText, QColor(CORES["tinta"]))
-    p.setColor(QPalette.ColorRole.Highlight, QColor(CORES["azul"]))
-    p.setColor(QPalette.ColorRole.HighlightedText, QColor("#FFFFFF"))
-    p.setColor(QPalette.ColorRole.ToolTipBase, QColor(CORES["tinta"]))
-    p.setColor(QPalette.ColorRole.ToolTipText, QColor("#FFFFFF"))
+    p.setColor(QPalette.ColorRole.Highlight, QColor(CORES["marca"]))
+    p.setColor(QPalette.ColorRole.HighlightedText, QColor(CORES["sobre_marca"]))
+    p.setColor(QPalette.ColorRole.ToolTipBase, QColor(CORES["dica_fundo"]))
+    p.setColor(QPalette.ColorRole.ToolTipText, QColor(CORES["dica_texto"]))
+    p.setColor(QPalette.ColorRole.Light, QColor(CORES["pauta_forte"]))
+    p.setColor(QPalette.ColorRole.Mid, QColor(CORES["pauta"]))
+    p.setColor(QPalette.ColorRole.Dark, QColor(CORES["canvas"]))
     p.setColor(QPalette.ColorRole.PlaceholderText, QColor(CORES["tinta_fraca"]))
     p.setColor(QPalette.ColorRole.Link, QColor(CORES["azul"]))
     for grupo in (QPalette.ColorGroup.Disabled,):
@@ -182,8 +328,8 @@ QWidget {{
 }}
 QMainWindow, QDialog {{ background: {canvas}; }}
 QToolTip {{
-    background: {tinta};
-    color: #FFFFFF;
+    background: {dica_fundo};
+    color: {dica_texto};
     border: none;
     border-radius: 6px;
     padding: 5px 8px;
@@ -196,7 +342,7 @@ QFrame#barraLateral QLabel[papel="lateral_secao"] {{
     font-family: "{dados}";
     font-size: 10px;
     font-weight: 600;
-    color: #7F8FB6;
+    color: {lateral_fraco};
     padding-left: 14px;
 }}
 QFrame#barraLateral QLabel[papel="lateral_nome"] {{
@@ -217,7 +363,7 @@ QPushButton[nav="true"]:hover {{ background: {lateral_hover}; color: #FFFFFF; }}
 QPushButton[nav="true"]:checked {{ background: {lateral_ativo}; color: #FFFFFF; }}
 QPushButton[variante="lateral"] {{
     background: transparent;
-    border: 1px solid #3A5287;
+    border: 1px solid {lateral_borda};
     border-radius: 8px;
     padding: 6px 12px;
     color: {lateral_texto};
@@ -328,7 +474,7 @@ QCheckBox::indicator:hover {{ border-color: {ciano}; }}
 QCheckBox::indicator:checked {{
     background: {marca};
     border-color: {marca};
-    image: none;
+    image: url("{marcado}");
 }}
 
 /* -------------------------------------------------------------- botões */
@@ -351,7 +497,7 @@ QPushButton:disabled {{
 QPushButton[variante="primario"] {{
     background: {laranja};
     border-color: {laranja};
-    color: {tinta};
+    color: {sobre_laranja};
     font-weight: 700;
 }}
 QPushButton[variante="primario"]:hover {{
@@ -359,17 +505,17 @@ QPushButton[variante="primario"]:hover {{
     border-color: {laranja_hover};
 }}
 QPushButton[variante="primario"]:disabled {{
-    background: #FBE0BC;
-    border-color: #FBE0BC;
-    color: #A89A86;
+    background: {primario_off};
+    border-color: {primario_off};
+    color: {primario_off_texto};
 }}
 QPushButton[variante="marinho"] {{
     background: {marca};
     border-color: {marca};
-    color: #FFFFFF;
+    color: {sobre_marca};
     font-weight: 700;
 }}
-QPushButton[variante="marinho"]:hover {{ background: {tinta}; border-color: {tinta}; }}
+QPushButton[variante="marinho"]:hover {{ background: {marca_hover}; border-color: {marca_hover}; }}
 QPushButton[variante="sucesso"] {{
     background: {verde_claro};
     border-color: {verde_borda};
@@ -379,7 +525,7 @@ QPushButton[variante="sucesso"] {{
 QPushButton[variante="sucesso"]:hover {{
     background: {verde};
     border-color: {verde};
-    color: #FFFFFF;
+    color: {papel};
 }}
 QPushButton[variante="perigo"] {{ color: {vermelho}; }}
 QPushButton[variante="perigo"]:hover {{
@@ -388,11 +534,11 @@ QPushButton[variante="perigo"]:hover {{
 }}
 QPushButton[variante="alerta"] {{
     background: {carimbo_claro};
-    border-color: #F6D3A4;
+    border-color: {alerta_borda};
     color: {carimbo};
     font-weight: 700;
 }}
-QPushButton[variante="alerta"]:hover {{ background: {laranja}; border-color: {laranja}; color: {tinta}; }}
+QPushButton[variante="alerta"]:hover {{ background: {laranja}; border-color: {laranja}; color: {sobre_laranja}; }}
 QPushButton[variante="fantasma"] {{
     background: transparent;
     border: 1px solid transparent;
@@ -467,6 +613,7 @@ QTableWidget, QTableView {{
    usa a mesma tinta. */
 QTableWidget::item {{ padding: 7px 8px; border-bottom: 1px solid {cinza_claro}; }}
 QTableWidget::item:selected {{ background: {azul_claro}; color: {tinta}; }}
+QTableWidget::item:hover {{ background: {papel_suave}; }}
 QHeaderView::section {{
     background: {papel};
     color: {tinta_fraca};
@@ -516,6 +663,14 @@ QStatusBar {{
 }}
 QStatusBar::item {{ border: none; }}
 QMessageBox {{ background: {papel}; }}
+QMenu {{
+    background: {papel};
+    border: 1px solid {pauta_forte};
+    border-radius: 8px;
+    padding: 4px;
+}}
+QMenu::item {{ padding: 6px 14px; border-radius: 6px; color: {tinta}; }}
+QMenu::item:selected {{ background: {azul_claro}; }}
 """
 
 
@@ -540,16 +695,23 @@ def carregar_fontes() -> list[str]:
 
 
 def folha_de_estilo() -> str:
-    return QSS.format(ui=FONTE_UI, titulo=FONTE_TITULO, dados=FONTE_DADOS, **CORES)
+    from app import caminhos
+
+    # O Qt aceita barra normal em qualquer sistema; a invertida do Windows não.
+    marcado = caminhos.recurso("icones", "marcado.svg").as_posix()
+    return QSS.format(
+        ui=FONTE_UI, titulo=FONTE_TITULO, dados=FONTE_DADOS, marcado=marcado, **CORES
+    )
 
 
-def aplicar_tema(app: QApplication) -> None:
-    """Deixa o app sempre claro, independente do tema do sistema."""
+def aplicar_tema(app: QApplication, nome: str | None = None) -> None:
+    """Aplica o tema escolhido (claro ou escuro), sem seguir o do sistema."""
     from PySide6.QtGui import QFont
 
+    definir_tema(nome or tema_salvo())
     carregar_fontes()
     app.setStyle("Fusion")
-    app.setPalette(_palette_clara())
+    app.setPalette(_paleta())
     fonte = QFont(FONTE_UI, 10)
     fonte.setWeight(QFont.Weight.Medium)
     app.setFont(fonte)

@@ -8,7 +8,7 @@ dica ao passar o mouse com o número exato.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath
@@ -26,7 +26,7 @@ class Fatia:
 
     rotulo: str
     valor: int
-    cor: str = CORES["azul"]
+    cor: str = field(default_factory=lambda: CORES["azul"])
     detalhe: str = ""
 
 
