@@ -1047,8 +1047,15 @@ class RelatorioDialog(QDialog):
         except Exception:
             self._atrasados = []
         quantos = len(self._atrasados)
-        self.tarja.setVisible(bool(quantos))
+        # A tarja fica sempre à vista: sem atrasados, ela diz que não há o que
+        # incluir — assim ninguém fica procurando a opção.
+        self.incluir_atrasados.setVisible(bool(quantos))
         if not quantos:
+            self.texto_tarja.setText(
+                f'<span style="color:{CORES_TELA["verde"]};">✓</span>&nbsp; '
+                "Nenhum serviço de dias anteriores sem baixa — a rota sai só com"
+                " o período escolhido."
+            )
             return
         antigo = min(e.data for e in self._atrasados)
         self.texto_tarja.setText(
@@ -1073,7 +1080,7 @@ class RelatorioDialog(QDialog):
         return str(Path.home() / f"{nome}.pdf")
 
     def atrasados_escolhidos(self) -> list[Evento]:
-        if self.tarja.isHidden() or not self.incluir_atrasados.isChecked():
+        if self.incluir_atrasados.isHidden() or not self.incluir_atrasados.isChecked():
             return []
         return list(self._atrasados)
 

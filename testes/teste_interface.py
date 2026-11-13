@@ -373,7 +373,8 @@ def baixas(janela: MainWindow) -> None:
 
     dialogo = relatorio_pdf.RelatorioDialog(quadro, hoje, atalho_baixas=False)
     assert dialogo.windowTitle() == "Emitir rota"
-    if not dialogo.tarja.isHidden():
+    assert not dialogo.tarja.isHidden(), "a opção fica sempre à vista"
+    if not dialogo.incluir_atrasados.isHidden():
         assert dialogo.incluir_atrasados.isChecked(), "atrasados vão junto por padrão"
         assert dialogo.atrasados_escolhidos()
         dialogo.incluir_atrasados.setChecked(False)
