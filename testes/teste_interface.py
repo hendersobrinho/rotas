@@ -158,6 +158,30 @@ def clientes(janela: MainWindow) -> None:
     ]
     assert "1 sócio" in textos and "1 empresa" in textos, textos
 
+    # Pela ficha da empresa: abrir e editar o cadastro do sócio, e voltar.
+    aba._abrir(empresa.id)
+    linha = next(aba.lista_vinculos.itemAt(i).widget()
+                 for i in range(aba.lista_vinculos.count())
+                 if isinstance(aba.lista_vinculos.itemAt(i).widget(), LinhaVinculo))
+    linha.abrir.emit(pessoa.id)
+    assert aba._cliente_id == pessoa.id and aba.btn_voltar_anterior.isVisibleTo(janela)
+    aba._voltar_ao_anterior()
+    assert aba._cliente_id == empresa.id and not aba.btn_voltar_anterior.isVisibleTo(janela)
+    aba._editar_vinculado(pessoa.id)
+    assert aba.pilha.currentIndex() == ClientesTab.PAGINA_CADASTRO
+    assert aba.nome.text() == pessoa.nome and "Voltar para" in aba.btn_descartar.text()
+    aba.telefone.setText("(31) 97777-0000")
+    aba._salvar()
+    app.processEvents()
+    assert aba._cliente_id == empresa.id, "salvar o sócio volta para a empresa"
+    assert aba.pilha.currentIndex() == ClientesTab.PAGINA_FICHA
+    with session_scope() as sessao:
+        assert repo_clientes.obter_cliente(sessao, pessoa.id).telefone == "(31) 97777-0000"
+    aba._editar_vinculado(pessoa.id)
+    aba._descartar()
+    assert aba._cliente_id == empresa.id, "cancelar também volta para a empresa"
+    print("ok sócios: editar o cadastro do sócio pela ficha da empresa e voltar")
+
     with session_scope() as sessao:
         repo_socios.desvincular(sessao, vinculo_id)
         assert repo_socios.vinculos_do_cliente(sessao, empresa.id) == []
@@ -262,6 +286,15 @@ def cadastros_e_painel(janela: MainWindow) -> None:
     assert aba.tabela_usuarios.rowCount() >= 1
     assert "(você)" in aba.tabela_usuarios.item(0, 0).text()
     print("ok cadastros: tipos, solicitantes e usuários")
+
+    # Os diálogos de inclusão abrem (o "Novo" da tela de Configurações).
+    from app.ui import cadastros as tela_cadastros
+
+    for classe in (tela_cadastros.TipoServicoDialog, tela_cadastros.SolicitanteDialog,
+                   tela_cadastros.UsuarioDialog):
+        classe(aba).deleteLater()
+    assert janela.navegacao[MainWindow.ABA_CADASTROS].text().strip() == "Configurações"
+    print("ok configurações: diálogos de inclusão abrem")
 
     janela.abas.setCurrentIndex(MainWindow.ABA_PAINEL)
     app.processEvents()

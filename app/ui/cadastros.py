@@ -24,6 +24,7 @@ from app.repository import tipos_servico as repo_tipos
 from app.repository import usuarios as repo_usuarios
 from app.schemas import DadosSolicitante, DadosTipoServico, DadosUsuario
 from app.ui.estilo import (
+    CORES,
     ESTILO_PADRAO,
     PALETA_ETIQUETA,
     cores_da_etiqueta,

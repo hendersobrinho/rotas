@@ -83,7 +83,7 @@ def _situacao_do_fixo(regra) -> str:
 
 
 def _rotulo_endereco(evento: Evento) -> str:
-    return "—" if evento.endereco is None else evento.endereco.etiqueta
+    return "—" if evento.endereco is None else evento.endereco.etiqueta_na_tela
 
 
 def _iniciais(nome: str) -> str:
@@ -301,6 +301,7 @@ class LinhaVinculo(QFrame):
     """Uma pessoa (ou empresa) ligada, com contato e onde encontrar."""
 
     abrir = Signal(int)
+    editar = Signal(int)
     mudar_papel = Signal(int)
     remover = Signal(int)
 
@@ -335,7 +336,7 @@ class LinhaVinculo(QFrame):
         if detalhes:
             linhas.addWidget(rotulo(" · ".join(detalhes), "fraco"))
         for endereco in list(outro.enderecos)[:2]:
-            texto = QLabel(f"📍 {endereco.etiqueta}: {endereco.resumo()}")
+            texto = QLabel(f"{endereco.etiqueta_na_tela}: {endereco.resumo()}")
             texto.setWordWrap(True)
             texto.setStyleSheet(f"color: {CORES['tinta_media']}; font-size: 12px;")
             linhas.addWidget(texto)
@@ -344,6 +345,12 @@ class LinhaVinculo(QFrame):
 
         abrir = botao("Abrir ficha", "fantasma")
         abrir.clicked.connect(lambda: self.abrir.emit(outro.id))
+        editar = botao(
+            "Editar cadastro", "fantasma",
+            f"Alterar o cadastro de {outro.nome_exibicao} sem sair daqui:"
+            " ao salvar, volta para esta ficha.",
+        )
+        editar.clicked.connect(lambda: self.editar.emit(outro.id))
         mudar = botao("Papel", "fantasma", "Mudar o papel (sócio, administrador…)")
         mudar.clicked.connect(lambda: self.mudar_papel.emit(vinculo.id))
         remover = botao("Desvincular", "fantasma", "Desfazer o vínculo")
@@ -351,6 +358,7 @@ class LinhaVinculo(QFrame):
         acoes = QVBoxLayout()
         acoes.setSpacing(2)
         acoes.addWidget(abrir)
+        acoes.addWidget(editar)
         acoes.addWidget(mudar)
         acoes.addWidget(remover)
         acoes.addStretch(1)
@@ -384,6 +392,10 @@ class ClientesTab(QWidget):
         self._historico: list[Evento] = []
         self._editando = False
         self._clientes: list[Cliente] = []
+        # Ficha aberta a partir de um vínculo: para onde o "voltar" leva.
+        self._anterior: int | None = None
+        # Cadastro aberto a partir da ficha de outro cliente: volta para ela.
+        self._voltar_apos_edicao: int | None = None
         self._contagem_vinculos: dict[int, tuple[int, int]] = {}
         self._lembrancinhas: dict[int, SituacaoLembrancinha] = {}
 
@@ -545,6 +557,9 @@ class ClientesTab(QWidget):
     def _montar_ficha(self) -> QWidget:
         voltar = botao("‹  Clientes", "fantasma")
         voltar.clicked.connect(self.voltar_para_lista)
+        self.btn_voltar_anterior = botao("", "fantasma")
+        self.btn_voltar_anterior.clicked.connect(self._voltar_ao_anterior)
+        self.btn_voltar_anterior.hide()
 
         # ---- cabeçalho: quem é
         self.cabecalho_ficha = cartao()
@@ -601,7 +616,7 @@ class ClientesTab(QWidget):
         self.apoio_socios.setWordWrap(True)
         socios.addWidget(self.apoio_socios)
         topo_socios.addStretch(1)
-        self.btn_vincular = botao("+  Vincular sócio", "fantasma")
+        self.btn_vincular = botao("+  Vincular sócio", "marinho")
         self.btn_vincular.clicked.connect(self._vincular)
         topo_socios.addWidget(self.btn_vincular)
         self.lista_vinculos = QVBoxLayout()
@@ -643,7 +658,12 @@ class ClientesTab(QWidget):
         coluna = QVBoxLayout(pagina)
         coluna.setContentsMargins(0, 0, 0, 0)
         coluna.setSpacing(12)
-        coluna.addWidget(voltar, 0, Qt.AlignmentFlag.AlignLeft)
+        navegacao = QHBoxLayout()
+        navegacao.setSpacing(4)
+        navegacao.addWidget(voltar)
+        navegacao.addWidget(self.btn_voltar_anterior)
+        navegacao.addStretch(1)
+        coluna.addLayout(navegacao)
         coluna.addWidget(self.cabecalho_ficha)
         coluna.addWidget(rolagem, 1)
         return pagina
@@ -1092,7 +1112,28 @@ class ClientesTab(QWidget):
         self._carregando = False
         self.pilha.setCurrentIndex(self.PAGINA_LISTA)
 
-    def _abrir(self, cliente_id: int) -> None:
+    def _abrir_vinculado(self, cliente_id: int) -> None:
+        """Abre a ficha de um sócio (ou empresa), lembrando de onde veio."""
+        self._abrir(cliente_id, anterior=self._cliente_id)
+
+    def _editar_vinculado(self, cliente_id: int) -> None:
+        """Edita o cadastro do sócio (ou empresa) e, depois, volta para cá."""
+        origem = self._cliente_id
+        self._abrir(cliente_id, anterior=origem)
+        self._editar()
+        self._voltar_apos_edicao = origem
+        nome = self._nome_do_cliente(origem)
+        self.btn_descartar.setText(f"‹  Voltar para {nome} sem salvar")
+
+    def _nome_do_cliente(self, cliente_id: int | None) -> str:
+        cliente = next((c for c in self._clientes if c.id == cliente_id), None)
+        return cliente.nome_exibicao if cliente else "a ficha"
+
+    def _voltar_ao_anterior(self) -> None:
+        if self._anterior is not None:
+            self._abrir(self._anterior)
+
+    def _abrir(self, cliente_id: int, anterior: int | None = None) -> None:
         """Mostra a ficha. O formulário também fica pronto, para o Editar."""
         try:
             with session_scope() as sessao:
@@ -1109,6 +1150,13 @@ class ClientesTab(QWidget):
 
         self._cliente_id = cliente_id
         self._editando = False
+        self._voltar_apos_edicao = None
+        self._anterior = anterior if anterior != cliente_id else None
+        if self._anterior is not None:
+            self.btn_voltar_anterior.setText(
+                f"‹  Voltar para {self._nome_do_cliente(self._anterior)}"
+            )
+        self.btn_voltar_anterior.setVisible(self._anterior is not None)
         self._preencher_ficha(cliente, socios, empresas)
         self._preencher_formulario(cliente)
         self._preencher_historico(historico)
@@ -1221,7 +1269,7 @@ class ClientesTab(QWidget):
             f" border: 1px solid {CORES['pauta']}; border-radius: 10px; }}"
             "QFrame#blocoEndereco QLabel { background: transparent; }"
         )
-        titulo = QLabel(endereco.etiqueta)
+        titulo = QLabel(f"{endereco.icone_tipo}  {endereco.etiqueta}")
         titulo.setStyleSheet(f"color: {CORES['tinta']}; font-weight: 800;")
         tipo = pilula(endereco.tipo.value.upper(), CORES["tinta_media"], CORES["cinza_claro"])
         topo = QHBoxLayout()
@@ -1251,7 +1299,8 @@ class ClientesTab(QWidget):
 
     def _linha_vinculo(self, vinculo: VinculoSocio, outro: Cliente) -> LinhaVinculo:
         linha = LinhaVinculo(vinculo, outro)
-        linha.abrir.connect(self._abrir)
+        linha.abrir.connect(self._abrir_vinculado)
+        linha.editar.connect(self._editar_vinculado)
         linha.mudar_papel.connect(self._mudar_papel)
         linha.remover.connect(self._desvincular)
         return linha
@@ -1415,6 +1464,7 @@ class ClientesTab(QWidget):
 
     def _novo(self) -> None:
         self._cliente_id = None
+        self._voltar_apos_edicao = None
         self._preencher_formulario(None)
         self.titulo_cadastro.setText("Novo cliente")
         self.apoio_cadastro.setText(
@@ -1427,7 +1477,9 @@ class ClientesTab(QWidget):
 
     def _descartar(self) -> None:
         self._editando = False
-        if self._cliente_id is None:
+        if self._voltar_apos_edicao is not None:
+            self._abrir(self._voltar_apos_edicao)
+        elif self._cliente_id is None:
             self._modo_vazio()
             self.voltar_para_lista()
         else:
@@ -1457,8 +1509,9 @@ class ClientesTab(QWidget):
 
         self._cliente_id = novo_id
         self._editando = False
+        voltar_para = self._voltar_apos_edicao
         self.recarregar()
-        self._abrir(novo_id)
+        self._abrir(voltar_para if voltar_para is not None else novo_id)
         self.dados_alterados.emit()
 
     def _excluir(self) -> None:

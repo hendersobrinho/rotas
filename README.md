@@ -134,7 +134,7 @@ app/
 └── ui/
     ├── marca.py           cores da marca, logotipo e ícone do programa
     ├── estilo.py          tema claro: paleta, fontes e folha de estilo
-    ├── main_window.py     janela com as abas Agenda, Clientes, Painel e Cadastros
+    ├── main_window.py     janela e a barra lateral (Cadastro de clientes, Agenda, Lembrancinhas…)
     ├── eventos_tab.py     calendário do mês e a folha do dia
     ├── calendario.py      a grade do mês
     ├── evento_dialog.py   diálogo de inclusão e edição de um serviço
@@ -205,7 +205,9 @@ Regras do cadastro:
   acrescenta um bloco; o *Remover* de cada um tira. Cada endereço tem um tipo
   (residencial ou comercial) e um **nome** — *Matriz*, *Filial Barreiro*,
   *Depósito* —, que é como ele aparece na hora de marcar um serviço e nos
-  relatórios. Dois endereços do mesmo tipo com o mesmo nome não passam.
+  relatórios — sempre com o tipo à vista: *🏢 MATRIZ (Comercial)*,
+  *🏠 CASA (Residencial)*. Dois endereços do mesmo tipo com o mesmo nome não
+  passam.
 - Um bloco deixado inteiramente em branco é ignorado, e um endereço removido da
   tela sai do banco quando você salva.
 - O **histórico** são os serviços do cliente, do mais recente para o mais
@@ -223,7 +225,10 @@ sugestões). A pessoa precisa estar cadastrada como cliente, normalmente PF.
   um sócio. *Vincular sócio* escolhe a pessoa.
 - Na ficha da **pessoa**, o cartão *Empresas* mostra de quais empresas ela faz
   parte; *Vincular a empresa* faz o caminho inverso.
-- Cada vínculo tem *Abrir ficha*, *Papel* e *Desvincular*. Desfazer o vínculo
+- Cada vínculo tem *Abrir ficha*, *Editar cadastro*, *Papel* e *Desvincular*.
+  *Editar cadastro* abre o cadastro do sócio (ou da empresa) ali mesmo e, ao
+  salvar ou cancelar, volta para a ficha de onde se partiu; *Abrir ficha*
+  mostra o botão *Voltar para …* no topo. Desfazer o vínculo
   não mexe nos dois cadastros; excluir um cliente desfaz os vínculos dele.
 - Uma PJ também pode ser sócia de outra (holding): aparece no cartão *Faz
   parte de* da ficha dela.
@@ -269,7 +274,7 @@ removidos.
 ### Entrar no sistema
 
 Na primeira execução não existe usuário nenhum, e a tela de entrada pede para
-criar o primeiro — é ele que depois cadastra os outros, na aba Cadastros.
+criar o primeiro — é ele que depois cadastra os outros, na aba Configurações.
 
 A opção **Continuar conectado neste computador** guarda um token na pasta de
 dados do usuário — `~/.local/share/rotas/` no Linux,
@@ -313,7 +318,7 @@ Três coisas que a geração respeita: nunca cria a mesma data duas vezes, não
 mexe no que já está marcado (um serviço cancelado não volta na geração
 seguinte), e apagar a regra não apaga os serviços que ela já abriu.
 
-### Cadastros
+### Configurações
 
 - **Tipos de serviço**: Coleta e Retirada vêm prontos, e você cria os que quiser
   (*Entrega de guia*, *Malote*...). Cada tipo tem uma cor da paleta, que carrega
@@ -647,7 +652,7 @@ Sai `dist\Rotas\Rotas.exe`, já com o ícone do programa, as fontes embutidas
 (Sora, Plus Jakarta Sans e JetBrains Mono não vêm no Windows) e o driver do
 PostgreSQL. Para virar instalador, abra `instalador\rotas.iss` no
 [Inno Setup](https://jrsoftware.org/isdl.php) e mande compilar: sai
-`instalador\saida\rotas-instalador-1.3.0.exe` — a versão vai no nome do
+`instalador\saida\rotas-instalador-1.3.1.exe` — a versão vai no nome do
 arquivo —, que instala para o usuário atual (sem pedir administrador) e cria
 os atalhos. O atalho, no menu e na área de trabalho, chama-se **MRotas**; o
 nome por extenso fica na dica que aparece ao passar o mouse.
@@ -666,9 +671,9 @@ Para publicar uma versão:
 
 1. Suba a versão em `app/__init__.py` **e** em `instalador/rotas.iss`;
 2. gere o `.exe` e o instalador como acima;
-3. crie a release no GitHub com a tag `v1.3.0` (o número da versão), escreva as
+3. crie a release no GitHub com a tag `v1.3.1` (o número da versão), escreva as
    novidades no texto — é o que aparece para quem vai atualizar — e anexe o
-   `rotas-instalador-1.3.0.exe`. Rascunho e pré-lançamento são ignorados.
+   `rotas-instalador-1.3.1.exe`. Rascunho e pré-lançamento são ignorados.
 
 A consulta usa a API pública do GitHub, então **o repositório precisa ser
 público** (ou as releases não aparecem). Rodando a partir do código a consulta

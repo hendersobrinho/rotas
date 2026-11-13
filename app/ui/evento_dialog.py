@@ -102,7 +102,7 @@ class EventoDialog(QDialog):
         conteudo.addWidget(
             rotulo(
                 "Cliente e endereço são obrigatórios. O tipo de serviço e o"
-                " solicitante vêm da aba Cadastros.",
+                " solicitante vêm da aba Configurações.",
                 "fraco",
             )
         )
@@ -337,7 +337,7 @@ class EventoDialog(QDialog):
 
         for endereco in cliente.enderecos:
             self.campo_endereco.addItem(
-                f"{endereco.etiqueta} — {endereco.resumo()}", endereco.id
+                f"{endereco.etiqueta_na_tela} — {endereco.resumo()}", endereco.id
             )
         if precisa_escolher and anterior is None:
             self.campo_endereco.setCurrentIndex(0)
@@ -361,7 +361,7 @@ class EventoDialog(QDialog):
         tipo_id = self.campo_servico.currentData()
         if tipo_id is None:
             raise ValueError(
-                "Cadastre ao menos um tipo de serviço na aba Cadastros."
+                "Cadastre ao menos um tipo de serviço na aba Configurações."
             )
         if self.campo_endereco.currentData() is None:
             cliente = self._cliente_atual()

@@ -97,7 +97,7 @@ class LinhaEvento(QFrame):
         cabecalho.addWidget(etiqueta)
 
         detalhes = [
-            f"{evento.endereco.etiqueta}: {evento.endereco.resumo()}"
+            f"{evento.endereco.etiqueta_na_tela}: {evento.endereco.resumo()}"
             if evento.endereco is not None
             else "Endereço não informado"
         ]

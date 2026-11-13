@@ -360,6 +360,21 @@ class Endereco(Base):
         """Como o endereço aparece nas listas: o rótulo, ou o tipo."""
         return (self.rotulo or "").strip() or self.tipo.value
 
+    @property
+    def etiqueta_com_tipo(self) -> str:
+        """O nome com o tipo à vista: "MATRIZ (Comercial)", "CASA (Residencial)"."""
+        rotulo = (self.rotulo or "").strip()
+        return f"{rotulo} ({self.tipo.value})" if rotulo else self.tipo.value
+
+    @property
+    def icone_tipo(self) -> str:
+        return "🏢" if self.tipo is TipoEndereco.COMERCIAL else "🏠"
+
+    @property
+    def etiqueta_na_tela(self) -> str:
+        """Para a tela: o ícone do tipo antes do nome (o PDF usa sem ícone)."""
+        return f"{self.icone_tipo} {self.etiqueta_com_tipo}"
+
     def resumo(self) -> str:
         """Uma linha com o endereço, para listas e combos."""
         partes: list[str] = []

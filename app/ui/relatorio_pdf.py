@@ -136,7 +136,7 @@ def _escapar(texto: str) -> str:
 def _endereco(evento: Evento) -> str:
     if evento.endereco is None:
         return "Endereço não informado"
-    return f"{evento.endereco.etiqueta}: {evento.endereco.resumo()}"
+    return f"{evento.endereco.etiqueta_com_tipo}: {evento.endereco.resumo()}"
 
 
 def _mapa(evento: Evento) -> str | None:
@@ -376,7 +376,7 @@ def _bloco_servico(evento: Evento, b: float, fio: str, atrasado: bool = False) -
         )
 
     if evento.endereco is not None:
-        endereco = _escapar(f"{evento.endereco.etiqueta}: {evento.endereco.resumo()}")
+        endereco = _escapar(f"{evento.endereco.etiqueta_com_tipo}: {evento.endereco.resumo()}")
         mapa = _mapa(evento)
         if mapa:
             linhas.append(
@@ -483,7 +483,7 @@ def _linha_tabela(evento: Evento, b: float, fio: str, atrasado: bool = False) ->
 
     if evento.endereco is not None:
         texto_endereco = _escapar(
-            f"{evento.endereco.etiqueta}: {evento.endereco.resumo()}"
+            f"{evento.endereco.etiqueta_com_tipo}: {evento.endereco.resumo()}"
         )
         mapa = _mapa(evento)
         endereco = (

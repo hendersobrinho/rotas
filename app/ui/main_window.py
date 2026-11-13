@@ -217,15 +217,15 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(secao("ROTAS"))
         layout.addSpacing(4)
+        layout.addWidget(item("Cadastro de clientes", "clientes", self.ABA_CLIENTES))
         layout.addWidget(item("Agenda", "agenda", self.ABA_AGENDA))
+        layout.addWidget(item("Lembrancinhas", "lembrancinhas", self.ABA_LEMBRANCINHAS))
         layout.addWidget(item("Rota e baixas", "baixas", self.ABA_BAIXAS))
-        layout.addWidget(item("Clientes", "clientes", self.ABA_CLIENTES))
         layout.addSpacing(14)
         layout.addWidget(secao("ESCRITÓRIO"))
         layout.addSpacing(4)
-        layout.addWidget(item("Lembrancinhas", "lembrancinhas", self.ABA_LEMBRANCINHAS))
         layout.addWidget(item("Painel", "painel", self.ABA_PAINEL))
-        layout.addWidget(item("Cadastros", "cadastros", self.ABA_CADASTROS))
+        layout.addWidget(item("Configurações", "cadastros", self.ABA_CADASTROS))
         layout.addWidget(item("Registro", "registro", self.ABA_REGISTRO))
         layout.addStretch(1)
 
