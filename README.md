@@ -15,11 +15,27 @@ residencial e comercial) e a agenda de eventos ligada a cada um.
 
 ## Instalação
 
+No Linux:
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python main.py
 ```
+
+No Windows, dê dois cliques no `abrir.bat` (ou rode no terminal). Na primeira
+vez ele cria o ambiente `.venv-win` com o `uv` (ou com o `py -3.12`, se não
+houver `uv`) e instala as bibliotecas; das próximas, só abre o programa. Na
+mão seria:
+
+```powershell
+uv venv .venv-win --python 3.12
+uv pip install --python .venv-win\Scripts\python.exe -r requirements.txt
+.venv-win\Scripts\python main.py
+```
+
+A pasta `.venv` é do Linux e não serve no Windows; por isso o nome separado.
 
 Crie o banco (uma vez só):
 
@@ -147,7 +163,8 @@ testes/
 ├── teste_importacao.py    modelo da planilha, leitura, conferência e gravação
 ├── teste_conexao.py       primeiro acesso, tela de Conexão e limite de espera
 ├── teste_pdf.py           logotipo, cores, folha deitada e versão celular
-└── rodar.sh               roda tudo num banco de teste
+├── rodar.py               roda tudo num banco de teste (Windows e Linux)
+└── rodar.sh               o mesmo, em bash
 scripts/
 ├── migrar_tipos_e_solicitantes.py   migração para o formato com cadastros
 ├── migrar_nao_realizado.py          migração do estado "não realizado"
@@ -623,10 +640,14 @@ Test-NetConnection servidor-do-banco -Port 5432
 
 ## Verificações
 
-```bash
-createdb rotas_teste     # uma vez
-./testes/rodar.sh
+```powershell
+.venv-win\Scripts\python testes\rodar.py              # Windows
+.venv/bin/python testes/rodar.py                      # Linux (ou ./testes/rodar.sh)
+.venv-win\Scripts\python testes\rodar.py pdf          # só os que têm "pdf" no nome
 ```
+
+O usuário do `.env` precisa ter permissão de criar banco (`CREATEDB`). Para
+usar outro servidor só nos testes, defina `ROTAS_URL_TESTE`.
 
 O script cria e derruba um banco descartável a cada arquivo, usando a mesma
 conexão do `.env` — o banco de trabalho não é tocado. As telas rodam em modo
