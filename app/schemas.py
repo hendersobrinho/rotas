@@ -83,13 +83,37 @@ class DadosEndereco:
 
 
 @dataclass
+class DadosContato:
+    """Quem recebe no cliente e o telefone dela."""
+
+    responsavel: str | None = None
+    telefone: str | None = None
+    # Preenchido quando o contato já existe; None quando é novo.
+    id: int | None = None
+
+    def normalizado(self) -> "DadosContato":
+        return DadosContato(
+            responsavel=maiusculo(self.responsavel),
+            telefone=maiusculo(self.telefone),
+            id=self.id,
+        )
+
+    def esta_vazio(self) -> bool:
+        dados = self.normalizado()
+        return not (dados.responsavel or dados.telefone)
+
+
+@dataclass
 class DadosCliente:
     tipo: TipoCliente
     nome: str
     apelido: str | None = None
+    # Só um telefone, sem responsável: é o que a planilha traz. A tela manda
+    # a lista inteira em `contatos`; None ali quer dizer "não mexer".
     telefone: str | None = None
     observacao: str | None = None
     enderecos: list[DadosEndereco] = field(default_factory=list)
+    contatos: list[DadosContato] | None = None
 
     def normalizado(self) -> "DadosCliente":
         return DadosCliente(
@@ -99,6 +123,10 @@ class DadosCliente:
             telefone=maiusculo(self.telefone),
             observacao=maiusculo(self.observacao),
             enderecos=[e.normalizado() for e in self.enderecos],
+            contatos=(
+                None if self.contatos is None
+                else [c.normalizado() for c in self.contatos]
+            ),
         )
 
 
@@ -140,6 +168,7 @@ class DadosRecorrencia:
     periodo: Periodo = Periodo.MANHA
     endereco_id: int | None = None
     solicitante_id: int | None = None
+    contato_id: int | None = None
     dia_semana: int | None = None
     ordinal: int | None = None
     dia_mes: int | None = None
@@ -154,6 +183,7 @@ class DadosRecorrencia:
             periodo=self.periodo,
             endereco_id=self.endereco_id,
             solicitante_id=self.solicitante_id,
+            contato_id=self.contato_id,
             dia_semana=self.dia_semana,
             ordinal=self.ordinal,
             dia_mes=self.dia_mes,
@@ -188,6 +218,7 @@ class DadosEvento:
     solicitante_id: int | None = None
     status: StatusEvento = StatusEvento.PENDENTE
     motivo: str | None = None
+    contato_id: int | None = None
 
     def normalizado(self) -> "DadosEvento":
         return DadosEvento(
@@ -199,6 +230,7 @@ class DadosEvento:
             solicitante_id=self.solicitante_id,
             status=self.status,
             motivo=_limpar(self.motivo),
+            contato_id=self.contato_id,
         )
 
 

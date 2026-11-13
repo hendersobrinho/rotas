@@ -28,6 +28,7 @@ _CAMPOS_EVENTO = (
     "solicitante_id",
     "status",
     "motivo",
+    "contato_id",
 )
 
 
@@ -189,6 +190,7 @@ def reagendar(
         data=nova_data,
         periodo=novo_periodo or original.periodo,
         solicitante_id=original.solicitante_id,
+        contato_id=original.contato_id,
         status=StatusEvento.PENDENTE,
         origem_id=original.id,
     )
@@ -291,6 +293,13 @@ def _validar(
         raise ValueError("Escolha um tipo de serviço válido.")
 
     validar_endereco(cliente, dados.endereco_id, tolerar_sem_endereco)
+    validar_contato(cliente, dados.contato_id)
+
+
+def validar_contato(cliente: Cliente, contato_id: int | None) -> None:
+    """Aos cuidados de alguém do próprio cliente (ou de ninguém em especial)."""
+    if contato_id is not None and contato_id not in {c.id for c in cliente.contatos}:
+        raise ValueError("A pessoa escolhida não é um contato deste cliente.")
 
 
 # --------------------------------------------------------------- indicadores

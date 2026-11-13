@@ -47,7 +47,7 @@ from app.repository import eventos as repo_eventos
 from app.repository import lembrancinhas as repo_lembrancinhas
 from app.repository import recorrencias as repo_recorrencias
 from app.repository import socios as repo_socios
-from app.schemas import DadosCliente
+from app.schemas import DadosCliente, DadosContato
 from app.ui.datas import Agrupamento, agrupar
 from app.ui.estilo import COR_STATUS, CORES, FONTE_DADOS, FONTE_TITULO, marcar
 from app.ui.importar_clientes import ImportarClientesDialog
@@ -136,6 +136,13 @@ class Avatar(QLabel):
             f' font-family: "{FONTE_TITULO}"; font-size: {max(11, lado // 3)}px;'
             " font-weight: 800;"
         )
+
+
+def _telefones(cliente: Cliente) -> str:
+    """O telefone principal, e quantos outros contatos há."""
+    principal = cliente.telefone or "—"
+    outros = len(cliente.contatos) - 1
+    return f"{principal}  (+{outros})" if outros > 0 else principal
 
 
 def pilula(texto: str, cor: str, fundo: str) -> QLabel:
@@ -297,6 +304,37 @@ class VinculoDialog(QDialog):
 # ======================================================================
 # Linha de um vínculo na ficha
 # ======================================================================
+class LinhaContato(QWidget):
+    """Quem recebe e o telefone dela, numa linha do cadastro."""
+
+    remocao_pedida = Signal(object)
+
+    def __init__(self, contato=None, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.contato_id: int | None = contato.id if contato is not None else None
+        self.responsavel = QLineEdit((contato.responsavel or "") if contato else "")
+        self.responsavel.setPlaceholderText("Quem recebe — ex.: Ana, recepção, financeiro")
+        self.telefone = QLineEdit((contato.telefone or "") if contato else "")
+        self.telefone.setPlaceholderText("(31) 90000-0000")
+        self.telefone.setMaximumWidth(220)
+        remover = botao("✕", "fantasma", "Tirar este contato")
+        remover.setFixedWidth(36)
+        remover.clicked.connect(lambda: self.remocao_pedida.emit(self))
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(self.responsavel, 3)
+        layout.addWidget(self.telefone, 2)
+        layout.addWidget(remover)
+
+    def dados(self) -> DadosContato:
+        return DadosContato(
+            responsavel=self.responsavel.text(),
+            telefone=self.telefone.text(),
+            id=self.contato_id,
+        )
+
+
 class LinhaVinculo(QFrame):
     """Uma pessoa (ou empresa) ligada, com contato e onde encontrar."""
 
@@ -330,11 +368,10 @@ class LinhaVinculo(QFrame):
         linhas = QVBoxLayout()
         linhas.setSpacing(3)
         linhas.addLayout(topo)
-        detalhes = [outro.telefone] if outro.telefone else []
         if outro.apelido and outro.apelido != outro.nome:
-            detalhes.insert(0, outro.nome)
-        if detalhes:
-            linhas.addWidget(rotulo(" · ".join(detalhes), "fraco"))
+            linhas.addWidget(rotulo(outro.nome, "fraco"))
+        for contato in outro.contatos_na_tela():
+            linhas.addWidget(rotulo(f"☎  {contato}", "fraco"))
         for endereco in list(outro.enderecos)[:2]:
             texto = QLabel(f"{endereco.etiqueta_na_tela}: {endereco.resumo()}")
             texto.setWordWrap(True)
@@ -493,6 +530,7 @@ class ClientesTab(QWidget):
         if not termo:
             return True
         textos = [cliente.nome, cliente.apelido or "", cliente.telefone or ""]
+        textos += cliente.contatos_na_tela()
         for endereco in cliente.enderecos:
             textos += [endereco.cidade or "", endereco.bairro or "", endereco.etiqueta]
         return any(termo in sem_acento(texto) for texto in textos)
@@ -521,7 +559,7 @@ class ClientesTab(QWidget):
                     (
                         cliente.nome_exibicao,
                         cliente.tipo.name,
-                        cliente.telefone or "—",
+                        _telefones(cliente),
                         _onde(cliente),
                         self._texto_vinculos(cliente),
                     ),
@@ -753,8 +791,10 @@ class ClientesTab(QWidget):
         self.nome.setPlaceholderText("Razão social (PJ) ou nome completo (PF)")
         self.apelido = QLineEdit()
         self.apelido.setPlaceholderText("Nome fantasia, ou como a pessoa gosta de ser chamada")
-        self.telefone = QLineEdit()
-        self.telefone.setPlaceholderText("(31) 90000-0000")
+        self.lista_contatos = QVBoxLayout()
+        self.lista_contatos.setSpacing(6)
+        self.btn_contato = botao("+  Adicionar outra pessoa / telefone", "fantasma")
+        self.btn_contato.clicked.connect(lambda: self._acrescentar_contato().responsavel.setFocus())
         self.observacao = QPlainTextEdit()
         self.observacao.setMaximumHeight(80)
         self.observacao.setPlaceholderText("Combinados, recados, horários...")
@@ -773,11 +813,20 @@ class ClientesTab(QWidget):
         grade.addWidget(rotulo("Nome / razão social", "campo"), 1, 0)
         grade.addWidget(self.nome, 1, 1, 1, 3)
         grade.addWidget(rotulo("Apelido / fantasia", "campo"), 2, 0)
-        grade.addWidget(self.apelido, 2, 1)
-        grade.addWidget(rotulo("Telefone", "campo"), 2, 2)
-        grade.addWidget(self.telefone, 2, 3)
-        grade.addWidget(rotulo("Observação", "campo"), 3, 0, Qt.AlignmentFlag.AlignTop)
-        grade.addWidget(self.observacao, 3, 1, 1, 3)
+        grade.addWidget(self.apelido, 2, 1, 1, 3)
+        grade.addWidget(
+            rotulo("Quem recebe\ne telefone", "campo"), 3, 0, Qt.AlignmentFlag.AlignTop
+        )
+        bloco_contatos = QVBoxLayout()
+        bloco_contatos.setSpacing(4)
+        bloco_contatos.addLayout(self.lista_contatos)
+        linha_botao = QHBoxLayout()
+        linha_botao.addWidget(self.btn_contato)
+        linha_botao.addStretch(1)
+        bloco_contatos.addLayout(linha_botao)
+        grade.addLayout(bloco_contatos, 3, 1, 1, 3)
+        grade.addWidget(rotulo("Observação", "campo"), 4, 0, Qt.AlignmentFlag.AlignTop)
+        grade.addWidget(self.observacao, 4, 1, 1, 3)
         grade.setColumnStretch(1, 3)
         grade.setColumnStretch(3, 2)
         dados.addLayout(grade)
@@ -844,6 +893,37 @@ class ClientesTab(QWidget):
         centro.addWidget(miolo, 8)
         centro.addStretch(1)
         return pagina
+
+    # -------------------------------------------------- contatos (cadastro)
+    def _linhas_contato(self) -> list[LinhaContato]:
+        return [
+            self.lista_contatos.itemAt(i).widget()
+            for i in range(self.lista_contatos.count())
+            if isinstance(self.lista_contatos.itemAt(i).widget(), LinhaContato)
+        ]
+
+    def _preencher_contatos(self, cliente: Cliente | None) -> None:
+        _limpar(self.lista_contatos)
+        contatos = list(cliente.contatos) if cliente is not None else []
+        for contato in contatos:
+            self._acrescentar_contato(contato)
+        if not contatos:
+            linha = self._acrescentar_contato()
+            if cliente is not None and cliente.telefone:
+                linha.telefone.setText(cliente.telefone)
+
+    def _acrescentar_contato(self, contato=None) -> LinhaContato:
+        linha = LinhaContato(contato)
+        linha.remocao_pedida.connect(self._remover_contato)
+        self.lista_contatos.addWidget(linha)
+        return linha
+
+    def _remover_contato(self, linha: LinhaContato) -> None:
+        self.lista_contatos.removeWidget(linha)
+        linha.setParent(None)
+        linha.deleteLater()
+        if not self._linhas_contato():
+            self._acrescentar_contato()
 
     # ------------------------------------------------- endereços (cadastro)
     def _formularios_endereco(self) -> list[EnderecoForm]:
@@ -1200,7 +1280,7 @@ class ClientesTab(QWidget):
         linhas = [
             ("Nome / razão social", cliente.nome),
             ("Apelido / fantasia", cliente.apelido or "—"),
-            ("Telefone", cliente.telefone or "—"),
+            ("Quem recebe", "\n".join(cliente.contatos_na_tela()) or "—"),
             ("Observação", cliente.observacao or "—"),
         ]
         for indice, (campo, valor) in enumerate(linhas):
@@ -1443,7 +1523,7 @@ class ClientesTab(QWidget):
         self.campo_tipo.definir_valor(cliente.tipo if cliente else TipoCliente.PF)
         self.nome.setText(cliente.nome if cliente else "")
         self.apelido.setText((cliente.apelido or "") if cliente else "")
-        self.telefone.setText((cliente.telefone or "") if cliente else "")
+        self._preencher_contatos(cliente)
         self.observacao.setPlainText((cliente.observacao or "") if cliente else "")
         self._preencher_enderecos(cliente)
 
@@ -1490,7 +1570,7 @@ class ClientesTab(QWidget):
             tipo=self.campo_tipo.valor(),
             nome=self.nome.text(),
             apelido=self.apelido.text(),
-            telefone=self.telefone.text(),
+            contatos=[linha.dados() for linha in self._linhas_contato()],
             observacao=self.observacao.toPlainText(),
             enderecos=[f.dados() for f in self._formularios_endereco()],
         )

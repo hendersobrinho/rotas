@@ -57,6 +57,7 @@ class RecorrenciaDialog(QDialog):
 
         self.campo_servico = QComboBox()
         self.campo_endereco = QComboBox()
+        self.campo_contato = QComboBox()
         self.campo_solicitante = QComboBox()
         self.campo_periodo = Segmentado(Periodo)
         self.campo_frequencia = Segmentado(FrequenciaRecorrencia)
@@ -114,6 +115,8 @@ class RecorrenciaDialog(QDialog):
         layout.addWidget(self.campo_servico)
         layout.addWidget(rotulo("Endereço *", "campo"))
         layout.addWidget(self.campo_endereco)
+        layout.addWidget(rotulo("Aos cuidados de", "campo"))
+        layout.addWidget(self.campo_contato)
         layout.addWidget(rotulo("Solicitante", "campo"))
         layout.addWidget(self.campo_solicitante)
         layout.addSpacing(4)
@@ -223,6 +226,14 @@ class RecorrenciaDialog(QDialog):
                     f"{endereco.etiqueta_na_tela} — {endereco.resumo()}", endereco.id
                 )
 
+        self.campo_contato.clear()
+        self.campo_contato.addItem("Ninguém em especial", None)
+        for contato in self._cliente.contatos:
+            self.campo_contato.addItem(f"☎  {contato.descricao}", contato.id)
+        self.campo_contato.setEnabled(bool(self._cliente.contatos))
+        if regra is None and self._cliente.contatos:
+            self.campo_contato.setCurrentIndex(1)
+
         self.campo_solicitante.clear()
         self.campo_solicitante.addItem("Não informar", None)
         for pessoa in pessoas:
@@ -235,6 +246,7 @@ class RecorrenciaDialog(QDialog):
             return
         selecionar_dado(self.campo_servico, regra.tipo_servico_id)
         selecionar_dado(self.campo_endereco, regra.endereco_id)
+        selecionar_dado(self.campo_contato, regra.contato_id)
         selecionar_dado(self.campo_solicitante, regra.solicitante_id)
         self.campo_periodo.definir_valor(regra.periodo)
         self.campo_frequencia.definir_valor(regra.frequencia)
@@ -278,6 +290,7 @@ class RecorrenciaDialog(QDialog):
             periodo=self.campo_periodo.valor(),
             endereco_id=self.campo_endereco.currentData(),
             solicitante_id=self.campo_solicitante.currentData(),
+            contato_id=self.campo_contato.currentData(),
             dia_semana=(
                 self.campo_dia_semana.currentData()
                 if frequencia is FrequenciaRecorrencia.SEMANAL

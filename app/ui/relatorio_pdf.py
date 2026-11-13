@@ -374,6 +374,11 @@ def _bloco_servico(evento: Evento, b: float, fio: str, atrasado: bool = False) -
             f'<div style="font-size:{b * 0.85:.2f}pt; color:{CORES["tinta_media"]};">'
             f"Tratar por <b>{_escapar(cliente.apelido)}</b></div>"
         )
+    if evento.contato is not None:
+        linhas.append(
+            f'<div style="font-size:{b * 0.88:.2f}pt; color:{CORES["tinta"]};">'
+            f"A/C <b>{_escapar(evento.contato.descricao)}</b></div>"
+        )
 
     if evento.endereco is not None:
         endereco = _escapar(f"{evento.endereco.etiqueta_com_tipo}: {evento.endereco.resumo()}")
@@ -406,7 +411,7 @@ def _bloco_servico(evento: Evento, b: float, fio: str, atrasado: bool = False) -
         rodape.append(f"veio do dia {evento.origem.data.strftime('%d/%m')}")
     if evento.solicitante is not None:
         rodape.append(f"Pedido por {evento.solicitante.nome_exibicao}")
-    if cliente.telefone:
+    if evento.contato is None and cliente.telefone:
         rodape.append(cliente.telefone)
     linhas.append(
         f'<div style="font-size:{b * 0.82:.2f}pt; color:{CORES["tinta_fraca"]};">'
@@ -474,12 +479,18 @@ def _linha_tabela(evento: Evento, b: float, fio: str, atrasado: bool = False) ->
             f' color:{CORES["tinta_media"]};">Tratar por '
             f"<b>{_escapar(cliente.apelido)}</b></div>"
         )
-    telefone = (
-        f'<div style="font-size:{b * 0.78:.2f}pt; color:{CORES["tinta_fraca"]};">'
-        f"{_escapar(cliente.telefone)}</div>"
-        if cliente.telefone
-        else ""
-    )
+    if evento.contato is not None:
+        telefone = (
+            f'<div style="font-size:{b * 0.78:.2f}pt; color:{CORES["tinta"]};">'
+            f"A/C <b>{_escapar(evento.contato.descricao)}</b></div>"
+        )
+    elif cliente.telefone:
+        telefone = (
+            f'<div style="font-size:{b * 0.78:.2f}pt; color:{CORES["tinta_fraca"]};">'
+            f"{_escapar(cliente.telefone)}</div>"
+        )
+    else:
+        telefone = ""
 
     if evento.endereco is not None:
         texto_endereco = _escapar(
@@ -662,10 +673,6 @@ def montar_html(
         "</body></html>"
     )
     return "".join(partes)
-
-
-def _telefone(evento: Evento) -> str:
-    return f" · {evento.cliente.telefone}" if evento.cliente.telefone else ""
 
 
 def _fonte(familia: str, corpo: float, peso: QFont.Weight) -> QFont:

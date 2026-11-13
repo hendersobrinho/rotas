@@ -77,6 +77,10 @@ class EventoDialog(QDialog):
             f"color: {CORES['vermelho']}; font-size: 11px;"
         )
         self.aviso_endereco.setVisible(False)
+        self.campo_contato = QComboBox()
+        self.campo_contato.setToolTip(
+            "A pessoa do cliente que vai receber. Os contatos vêm do cadastro."
+        )
         self.campo_servico = QComboBox()
         self.campo_solicitante = QComboBox()
         self.campo_solicitante.activated.connect(self._ao_escolher_solicitante)
@@ -119,6 +123,9 @@ class EventoDialog(QDialog):
         conteudo.addWidget(rotulo("Endereço *", "campo"))
         conteudo.addWidget(self.campo_endereco)
         conteudo.addWidget(self.aviso_endereco)
+        conteudo.addSpacing(8)
+        conteudo.addWidget(rotulo("Aos cuidados de", "campo"))
+        conteudo.addWidget(self.campo_contato)
         conteudo.addSpacing(8)
         conteudo.addWidget(rotulo("Tipo de serviço", "campo"))
         conteudo.addWidget(self.campo_servico)
@@ -246,6 +253,7 @@ class EventoDialog(QDialog):
         if evento is not None:
             self._definir_cliente(evento.cliente_id)
             selecionar_dado(self.campo_endereco, evento.endereco_id)
+            selecionar_dado(self.campo_contato, evento.contato_id)
             selecionar_dado(self.campo_servico, evento.tipo_servico_id)
             selecionar_dado(self.campo_solicitante, evento.solicitante_id)
             self.campo_periodo.definir_valor(evento.periodo)
@@ -288,10 +296,26 @@ class EventoDialog(QDialog):
         else:
             self.botao_cliente.setText(cliente.nome_exibicao)
             detalhes = [cliente.nome] if cliente.apelido != cliente.nome else []
-            if cliente.telefone:
-                detalhes.append(cliente.telefone)
             self.detalhe_cliente.setText(" · ".join(detalhes))
         self._atualizar_enderecos()
+        self._atualizar_contatos()
+
+    def _atualizar_contatos(self) -> None:
+        """Quem recebe: os contatos do cliente; o primeiro já vem escolhido."""
+        anterior = self.campo_contato.currentData()
+        cliente = self._cliente_atual()
+        self.campo_contato.clear()
+        self.campo_contato.addItem("Ninguém em especial", None)
+        if cliente is None:
+            self.campo_contato.setEnabled(False)
+            return
+        for contato in cliente.contatos:
+            self.campo_contato.addItem(f"☎  {contato.descricao}", contato.id)
+        self.campo_contato.setEnabled(bool(cliente.contatos))
+        if anterior is not None:
+            selecionar_dado(self.campo_contato, anterior)
+        elif cliente.contatos and self._evento_id is None:
+            self.campo_contato.setCurrentIndex(1)
 
     def _atualizar_enderecos(self) -> None:
         """O endereço é obrigatório: não existe opção de deixar em branco.
@@ -386,6 +410,7 @@ class EventoDialog(QDialog):
             solicitante_id=solicitante_id,
             status=self.campo_status.valor(),
             motivo=self.campo_motivo.text(),
+            contato_id=self.campo_contato.currentData(),
         )
 
     # ------------------------------------------------------------------ ações

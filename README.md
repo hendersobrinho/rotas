@@ -159,7 +159,7 @@ testes/
 ├── comum.py               banco descartável e dados de exemplo
 ├── teste_interface.py     entrada, conexão, clientes, agenda, cadastros e painel
 ├── teste_recorrencia.py   regras de repetição e abertura automática
-├── teste_enderecos.py     vários endereços e o endereço das lembrancinhas
+├── teste_enderecos.py     endereços, contatos (quem recebe) e lembrancinhas
 ├── teste_obrigatorios.py  cliente e endereço obrigatórios
 ├── teste_importacao.py    modelo da planilha, leitura, conferência e gravação
 ├── teste_conexao.py       primeiro acesso, tela de Conexão e limite de espera
@@ -201,6 +201,15 @@ Regras do cadastro:
 
 - Tipo **PF** ou **PJ**; o campo *Nome* guarda o nome completo ou a razão social.
 - O *apelido / fantasia* é o que aparece nas listas e nos combos.
+- **Quem recebe e telefone**: cada linha é uma pessoa do cliente (Ana, a
+  recepção, o financeiro) com o telefone dela; *Adicionar outra pessoa /
+  telefone* acrescenta mais, e o ✕ tira. O primeiro telefone é o principal —
+  o que aparece na lista e entra na busca (que também acha pelo nome de quem
+  recebe). Na hora de marcar um serviço (e nos serviços automáticos), o campo
+  **Aos cuidados de** escolhe a pessoa; ele aparece na agenda, nos cartões de
+  *Rota e baixas* e no PDF como *A/C ANA · (31) …*, sempre abaixo do nome do
+  cliente. A remarcação leva a mesma pessoa. Nos bancos de antes, o telefone
+  de cada cliente vira o primeiro contato, sem nome, na primeira abertura.
 - Cada cliente tem **quantos endereços precisar**. *Adicionar endereço*
   acrescenta um bloco; o *Remover* de cada um tira. Cada endereço tem um tipo
   (residencial ou comercial) e um **nome** — *Matriz*, *Filial Barreiro*,
@@ -652,7 +661,7 @@ Sai `dist\Rotas\Rotas.exe`, já com o ícone do programa, as fontes embutidas
 (Sora, Plus Jakarta Sans e JetBrains Mono não vêm no Windows) e o driver do
 PostgreSQL. Para virar instalador, abra `instalador\rotas.iss` no
 [Inno Setup](https://jrsoftware.org/isdl.php) e mande compilar: sai
-`instalador\saida\rotas-instalador-1.3.1.exe` — a versão vai no nome do
+`instalador\saida\rotas-instalador-1.4.0.exe` — a versão vai no nome do
 arquivo —, que instala para o usuário atual (sem pedir administrador) e cria
 os atalhos. O atalho, no menu e na área de trabalho, chama-se **MRotas**; o
 nome por extenso fica na dica que aparece ao passar o mouse.
@@ -671,9 +680,9 @@ Para publicar uma versão:
 
 1. Suba a versão em `app/__init__.py` **e** em `instalador/rotas.iss`;
 2. gere o `.exe` e o instalador como acima;
-3. crie a release no GitHub com a tag `v1.3.1` (o número da versão), escreva as
+3. crie a release no GitHub com a tag `v1.4.0` (o número da versão), escreva as
    novidades no texto — é o que aparece para quem vai atualizar — e anexe o
-   `rotas-instalador-1.3.1.exe`. Rascunho e pré-lançamento são ignorados.
+   `rotas-instalador-1.4.0.exe`. Rascunho e pré-lançamento são ignorados.
 
 A consulta usa a API pública do GitHub, então **o repositório precisa ser
 público** (ou as releases não aparecem). Rodando a partir do código a consulta

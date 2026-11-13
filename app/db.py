@@ -170,9 +170,31 @@ def _endereco_da_lembrancinha(sessao: Session) -> None:
     ))
 
 
+def _contatos_do_cliente(sessao: Session) -> None:
+    """Quem recebe: coluna nos serviços e nas regras, e o telefone antigo vira
+    o primeiro contato de cada cliente."""
+    from sqlalchemy import text
+
+    for tabela in ("eventos", "recorrencias"):
+        sessao.execute(text(
+            f"ALTER TABLE {tabela} ADD COLUMN IF NOT EXISTS contato_id INTEGER"
+            " REFERENCES contatos_cliente(id) ON DELETE SET NULL"
+        ))
+    sessao.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_eventos_contato_id ON eventos (contato_id)"
+    ))
+    sessao.execute(text(
+        "INSERT INTO contatos_cliente (cliente_id, telefone)"
+        " SELECT c.id, c.telefone FROM clientes c"
+        " WHERE coalesce(trim(c.telefone), '') <> ''"
+        " AND NOT EXISTS (SELECT 1 FROM contatos_cliente k WHERE k.cliente_id = c.id)"
+    ))
+
+
 # Em ordem; o nome é a chave gravada no banco e não pode mudar depois de
 # publicado. Um acerto novo entra no fim, com nome novo.
 MIGRACOES = (
     ("2026-10-clientes-em-maiusculas", _clientes_em_maiusculas),
     ("2026-11-endereco-da-lembrancinha", _endereco_da_lembrancinha),
+    ("2026-11-contatos-do-cliente", _contatos_do_cliente),
 )

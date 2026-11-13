@@ -110,12 +110,12 @@ def clientes(janela: MainWindow) -> None:
     aba._editar()
     assert aba.pilha.currentIndex() == ClientesTab.PAGINA_CADASTRO
     assert aba._editando and not aba.nome.isReadOnly()
-    antes = aba.telefone.text()
-    aba.telefone.setText("(31) 4002-8922")
+    antes = aba._linhas_contato()[0].telefone.text()
+    aba._linhas_contato()[0].telefone.setText("(31) 4002-8922")
     aba._descartar()
     app.processEvents()
     assert aba.pilha.currentIndex() == ClientesTab.PAGINA_FICHA, "cancelar volta à ficha"
-    assert aba.telefone.text() == antes and not aba._editando
+    assert aba._linhas_contato()[0].telefone.text() == antes and not aba._editando
     print("ok clientes: lista com filtros, ficha só de leitura, cadastro à parte")
 
     aba.voltar_para_lista()
@@ -170,7 +170,7 @@ def clientes(janela: MainWindow) -> None:
     aba._editar_vinculado(pessoa.id)
     assert aba.pilha.currentIndex() == ClientesTab.PAGINA_CADASTRO
     assert aba.nome.text() == pessoa.nome and "Voltar para" in aba.btn_descartar.text()
-    aba.telefone.setText("(31) 97777-0000")
+    aba._linhas_contato()[0].telefone.setText("(31) 97777-0000")
     aba._salvar()
     app.processEvents()
     assert aba._cliente_id == empresa.id, "salvar o sócio volta para a empresa"

@@ -212,6 +212,9 @@ class Recorrencia(Base):
     solicitante_id: Mapped[int | None] = mapped_column(
         ForeignKey("solicitantes.id", ondelete="SET NULL")
     )
+    contato_id: Mapped[int | None] = mapped_column(
+        ForeignKey("contatos_cliente.id", ondelete="SET NULL")
+    )
     periodo: Mapped[Periodo] = mapped_column(
         SAEnum(Periodo, name="periodo"), nullable=False, default=Periodo.MANHA
     )
@@ -236,6 +239,7 @@ class Recorrencia(Base):
     endereco: Mapped["Endereco | None"] = relationship(lazy="joined")
     tipo_servico: Mapped["TipoServico"] = relationship(lazy="joined")
     solicitante: Mapped["Solicitante | None"] = relationship(lazy="joined")
+    contato: Mapped["ContatoCliente | None"] = relationship(lazy="joined")
     eventos: Mapped[list["Evento"]] = relationship(back_populates="recorrencia")
 
     def __repr__(self) -> str:  # pragma: no cover
@@ -251,12 +255,20 @@ class Cliente(Base):
     )
     nome: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     apelido: Mapped[str | None] = mapped_column(String(120), index=True)
+    # O telefone principal: espelho do primeiro dos contatos (ver
+    # ContatoCliente), mantido para a busca, as listas e a planilha.
     telefone: Mapped[str | None] = mapped_column(String(40))
     observacao: Mapped[str | None] = mapped_column(Text)
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
 
+    contatos: Mapped[list["ContatoCliente"]] = relationship(
+        back_populates="cliente",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="ContatoCliente.id",
+    )
     enderecos: Mapped[list["Endereco"]] = relationship(
         back_populates="cliente",
         cascade="all, delete-orphan",
@@ -278,6 +290,12 @@ class Cliente(Base):
     def nome_exibicao(self) -> str:
         """Apelido quando existir, senão o nome/razão social."""
         return self.apelido or self.nome
+
+    def contatos_na_tela(self) -> list[str]:
+        """Cada contato numa linha; cadastro antigo sem contatos, o telefone."""
+        if self.contatos:
+            return [contato.descricao for contato in self.contatos]
+        return [self.telefone] if self.telefone else []
 
     def endereco_por_tipo(self, tipo: TipoEndereco) -> "Endereco | None":
         """O primeiro endereço de um tipo — um cliente pode ter vários."""
@@ -323,6 +341,34 @@ class VinculoSocio(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<VinculoSocio empresa={self.empresa_id} pessoa={self.pessoa_id}>"
+
+
+class ContatoCliente(Base):
+    """Quem recebe no cliente e o telefone dela.
+
+    Um cliente tem quantos precisar: a recepção, o sócio, o financeiro. Na
+    hora de marcar o serviço, escolhe-se aos cuidados de quem ele vai.
+    """
+
+    __tablename__ = "contatos_cliente"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cliente_id: Mapped[int] = mapped_column(
+        ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    responsavel: Mapped[str | None] = mapped_column(String(120))
+    telefone: Mapped[str | None] = mapped_column(String(40))
+
+    cliente: Mapped[Cliente] = relationship(back_populates="contatos")
+
+    @property
+    def descricao(self) -> str:
+        """"ANA · (31) 99876-5544", ou só um dos dois."""
+        partes = [p for p in (self.responsavel, self.telefone) if p]
+        return " · ".join(partes) or "Contato sem nome nem telefone"
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<ContatoCliente id={self.id} cliente={self.cliente_id}>"
 
 
 class Endereco(Base):
@@ -430,6 +476,11 @@ class Evento(Base):
     solicitante_id: Mapped[int | None] = mapped_column(
         ForeignKey("solicitantes.id", ondelete="SET NULL"), index=True
     )
+    # Aos cuidados de quem, no cliente (opcional). Apagar o contato do
+    # cadastro não apaga o serviço: só deixa de dizer a quem entregar.
+    contato_id: Mapped[int | None] = mapped_column(
+        ForeignKey("contatos_cliente.id", ondelete="SET NULL"), index=True
+    )
     status: Mapped[StatusEvento] = mapped_column(
         SAEnum(StatusEvento, name="status_evento"),
         nullable=False,
@@ -462,6 +513,7 @@ class Evento(Base):
     solicitante: Mapped[Solicitante | None] = relationship(
         back_populates="eventos", lazy="joined"
     )
+    contato: Mapped[ContatoCliente | None] = relationship(lazy="joined")
     # Autorreferentes não ganham carga antecipada automática: quem consulta
     # pede com joinedload/selectinload (ver repository/eventos.py).
     recorrencia: Mapped["Recorrencia | None"] = relationship(back_populates="eventos")

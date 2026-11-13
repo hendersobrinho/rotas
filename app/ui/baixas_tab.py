@@ -184,6 +184,12 @@ class CartaoServico(QFrame):
         coluna_layout.setSpacing(5)
         coluna_layout.addLayout(topo)
         coluna_layout.addWidget(cliente)
+        if evento.contato is not None:
+            cuidados = TextoElidido(f"A/C {evento.contato.descricao}")
+            cuidados.setStyleSheet(
+                f"color: {CORES['tinta']}; font-size: 11px; font-weight: 600;"
+            )
+            coluna_layout.addWidget(cuidados)
         coluna_layout.addWidget(endereco)
 
         extras: list[str] = []

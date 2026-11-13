@@ -101,6 +101,8 @@ class LinhaEvento(QFrame):
             if evento.endereco is not None
             else "Endereço não informado"
         ]
+        if evento.contato is not None:
+            detalhes.append(f"A/C {evento.contato.descricao}")
         if evento.solicitante is not None:
             detalhes.append(f"Pedido por {evento.solicitante.nome_exibicao}")
         if evento.motivo:

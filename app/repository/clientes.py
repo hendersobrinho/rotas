@@ -5,9 +5,9 @@ from __future__ import annotations
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import AcaoLog, Cliente, Endereco, EntidadeLog, TipoEndereco
+from app.models import AcaoLog, Cliente, ContatoCliente, Endereco, EntidadeLog, TipoEndereco
 from app.repository import logs as repo_logs
-from app.schemas import DadosCliente, DadosEndereco
+from app.schemas import DadosCliente, DadosContato, DadosEndereco
 
 _CAMPOS_ENDERECO = (
     "tipo",
@@ -58,6 +58,7 @@ def criar_cliente(sessao: Session, dados: DadosCliente) -> Cliente:
     )
     sessao.add(cliente)
     _aplicar_enderecos(cliente, dados.enderecos)
+    _aplicar_contatos(cliente, dados)
     sessao.flush()
     _sincronizar_lembrancinha(sessao, cliente, tinha_marcado=False)
     repo_logs.registrar(
@@ -82,6 +83,7 @@ def atualizar_cliente(sessao: Session, cliente_id: int, dados: DadosCliente) -> 
     cliente.observacao = dados.observacao
     tinha_marcado = any(e.lembrancinha for e in cliente.enderecos)
     _aplicar_enderecos(cliente, dados.enderecos)
+    _aplicar_contatos(cliente, dados)
     sessao.flush()
     _sincronizar_lembrancinha(sessao, cliente, tinha_marcado)
     repo_logs.registrar(
@@ -113,6 +115,7 @@ def validar(dados: DadosCliente) -> None:
     """
     if not dados.nome:
         raise ValueError("O nome (ou razão social) é obrigatório.")
+    _validar_contatos(dados.contatos)
 
     # Vários endereços do mesmo tipo são permitidos, mas com rótulos
     # diferentes — senão ninguém distingue um do outro na hora de marcar.
@@ -139,6 +142,53 @@ def _sincronizar_lembrancinha(sessao: Session, cliente: Cliente, tinha_marcado: 
     from app.repository import lembrancinhas as repo_lembrancinhas
 
     repo_lembrancinhas.sincronizar_com_cliente(sessao, cliente, tinha_marcado)
+
+
+def _aplicar_contatos(cliente: Cliente, dados: DadosCliente) -> None:
+    """Sincroniza os contatos e mantém `cliente.telefone` como o principal.
+
+    Com `dados.contatos` preenchido (a tela), a lista manda: quem tem `id`
+    é atualizado, quem não tem é novo, quem ficou de fora sai. Sem ela (a
+    planilha), vale o telefone avulso: vira o primeiro contato.
+    """
+    if dados.contatos is None:
+        if dados.telefone:
+            if cliente.contatos:
+                cliente.contatos[0].telefone = dados.telefone
+            else:
+                cliente.contatos.append(ContatoCliente(telefone=dados.telefone))
+        cliente.telefone = (
+            cliente.contatos[0].telefone if cliente.contatos else dados.telefone
+        )
+        return
+
+    existentes = {contato.id: contato for contato in cliente.contatos}
+    mantidos: list[ContatoCliente] = []
+    for item in dados.contatos:
+        if item.esta_vazio():
+            continue
+        atual = existentes.get(item.id) if item.id is not None else None
+        if atual is None:
+            atual = ContatoCliente()
+            cliente.contatos.append(atual)
+        atual.responsavel = item.responsavel
+        atual.telefone = item.telefone
+        mantidos.append(atual)
+    for contato in list(cliente.contatos):
+        if contato not in mantidos:
+            cliente.contatos.remove(contato)
+    principal = next((c.telefone for c in mantidos if c.telefone), None)
+    cliente.telefone = principal
+
+
+def _validar_contatos(contatos: list[DadosContato] | None) -> None:
+    for contato in contatos or []:
+        if contato.esta_vazio():
+            continue
+        if contato.responsavel and len(contato.responsavel) > 120:
+            raise ValueError("O nome de quem recebe passa de 120 letras.")
+        if contato.telefone and len(contato.telefone) > 40:
+            raise ValueError(f"O telefone “{contato.telefone}” está comprido demais.")
 
 
 def _aplicar_enderecos(cliente: Cliente, enderecos: list[DadosEndereco]) -> None:

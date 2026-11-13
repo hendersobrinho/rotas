@@ -34,6 +34,7 @@ _CAMPOS = (
     "endereco_id",
     "tipo_servico_id",
     "solicitante_id",
+    "contato_id",
     "periodo",
     "frequencia",
     "dia_semana",
@@ -226,6 +227,7 @@ def gerar(
                 endereco_id=regra.endereco_id,
                 tipo_servico_id=regra.tipo_servico_id,
                 solicitante_id=regra.solicitante_id,
+                contato_id=regra.contato_id,
                 data=dia,
                 periodo=regra.periodo,
                 status=StatusEvento.PENDENTE,
@@ -285,6 +287,10 @@ def _validar(sessao: Session, dados: DadosRecorrencia) -> None:
             raise ValueError("O dia do mês precisa estar entre 1 e 31.")
 
     cliente = sessao.get(Cliente, dados.cliente_id)
+    if dados.contato_id is not None and dados.contato_id not in {
+        c.id for c in cliente.contatos
+    }:
+        raise ValueError("A pessoa escolhida não é um contato deste cliente.")
     if dados.endereco_id is not None:
         if dados.endereco_id not in {e.id for e in cliente.enderecos}:
             raise ValueError("O endereço escolhido não pertence a este cliente.")

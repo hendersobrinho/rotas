@@ -216,4 +216,82 @@ assert [f.lembrancinha.isChecked() for f in formularios] == [False, True], "um s
 aba._descartar()
 assert aba.pilha.currentIndex() == ClientesTab.PAGINA_FICHA
 print("ok lista e ficha mostram o 🎁; no cadastro, marcar um desmarca o outro")
+# ---- quem recebe: vários contatos, e o serviço aos cuidados de um ---------
+from datetime import timedelta  # noqa: E402
+
+from app.models import Periodo  # noqa: E402
+from app.repository import eventos as repo_eventos  # noqa: E402
+from app.schemas import DadosContato, DadosEvento  # noqa: E402
+
+with session_scope() as sessao:
+    loja = repo_clientes.criar_cliente(sessao, DadosCliente(
+        tipo=TipoCliente.PJ, nome="Loja Dois Contatos LTDA",
+        contatos=[DadosContato("Ana", "(31) 1111-1111"),
+                  DadosContato("financeiro", "(31) 2222-2222"),
+                  DadosContato("", "")],
+        enderecos=[DadosEndereco(TipoEndereco.COMERCIAL, rotulo="Loja",
+                                 logradouro="Rua Z", numero="9", cidade="BH")]))
+    loja_id = loja.id
+    assert [c.descricao for c in loja.contatos] == [
+        "ANA · (31) 1111-1111", "FINANCEIRO · (31) 2222-2222"], "linha vazia some"
+    assert loja.telefone == "(31) 1111-1111", "o primeiro é o telefone principal"
+    financeiro_id = loja.contatos[1].id
+    servico = repo_eventos.criar_evento(sessao, DadosEvento(
+        cliente_id=loja.id, tipo_servico_id=dados["tipos"]["Coleta"],
+        data=dados["hoje"], periodo=Periodo.MANHA,
+        endereco_id=loja.enderecos[0].id, contato_id=financeiro_id))
+    assert servico.contato.responsavel == "FINANCEIRO"
+    novo = repo_eventos.reagendar(sessao, servico.id, dados["hoje"] + timedelta(days=1))
+    assert novo.contato_id == financeiro_id, "a remarcação leva quem recebe"
+    outro = repo_clientes.listar_clientes(sessao)[0]
+    try:
+        repo_eventos.criar_evento(sessao, DadosEvento(
+            cliente_id=outro.id, tipo_servico_id=dados["tipos"]["Coleta"],
+            data=dados["hoje"], periodo=Periodo.MANHA,
+            endereco_id=outro.enderecos[0].id if outro.enderecos else None,
+            contato_id=financeiro_id))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("contato de outro cliente aceito")
+print("ok dois contatos, telefone principal, serviço aos cuidados de um")
+
+# a planilha (só telefone) não apaga quem recebe
+with session_scope() as sessao:
+    repo_clientes.atualizar_cliente(sessao, loja_id, DadosCliente(
+        tipo=TipoCliente.PJ, nome="Loja Dois Contatos LTDA", telefone="(31) 3333-3333",
+        enderecos=[DadosEndereco(TipoEndereco.COMERCIAL, id=e.id, rotulo=e.rotulo,
+                                 logradouro=e.logradouro, numero=e.numero, cidade=e.cidade)
+                   for e in repo_clientes.obter_cliente(sessao, loja_id).enderecos]))
+    loja = repo_clientes.obter_cliente(sessao, loja_id)
+    assert [c.responsavel for c in loja.contatos] == ["ANA", "FINANCEIRO"]
+    assert loja.contatos[0].telefone == loja.telefone == "(31) 3333-3333"
+print("ok telefone avulso (planilha) atualiza o principal sem perder ninguém")
+
+# pela tela: a linha nova, a remoção, e o diálogo do serviço
+aba = janela.aba_clientes
+aba.recarregar()
+aba._abrir(loja_id)
+aba._editar()
+linhas = aba._linhas_contato()
+assert [l.responsavel.text() for l in linhas] == ["ANA", "FINANCEIRO"]
+nova = aba._acrescentar_contato()
+nova.responsavel.setText("Sócio Carlos")
+nova.telefone.setText("(31) 98888-7777")
+aba._remover_contato(linhas[0])
+aba._salvar()
+with session_scope() as sessao:
+    loja = repo_clientes.obter_cliente(sessao, loja_id)
+    assert [c.responsavel for c in loja.contatos] == ["FINANCEIRO", "SÓCIO CARLOS"]
+    assert loja.telefone == "(31) 2222-2222"
+    lista = repo_clientes.listar_clientes(sessao)
+print("ok tela: acrescenta e tira contato; o principal acompanha")
+
+dialogo = EventoDialog(None, lista, dia=dados["hoje"])
+dialogo._definir_cliente(loja_id)
+assert dialogo.campo_contato.count() == 3, dialogo.campo_contato.count()
+assert dialogo.campo_contato.currentData() is not None, "o primeiro vem escolhido"
+dialogo.campo_contato.setCurrentIndex(2)
+assert dialogo._dados().contato_id == dialogo.campo_contato.itemData(2)
+print("ok diálogo do serviço: aos cuidados de um dos contatos")
 print("TESTE ENDERECOS OK")

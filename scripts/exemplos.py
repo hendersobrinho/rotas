@@ -43,6 +43,7 @@ from app.repository import tipos_servico as rt  # noqa: E402
 from app.repository import usuarios as ru  # noqa: E402
 from app.schemas import (  # noqa: E402
     DadosCliente,
+    DadosContato,
     DadosDestinatario,
     DadosEndereco,
     DadosEvento,
@@ -113,6 +114,19 @@ CLIENTES = [
      ]),
 ]
 
+# Quem recebe em cada cliente, além do telefone principal.
+OUTROS_CONTATOS = {
+    "padaria": [("Gerente Paulo", "(31) 98123-4400")],
+    "construtora": [("Eng. Ricardo (obra)", "(31) 99654-0011"),
+                    ("Financeiro", "(31) 3333-4510")],
+    "transportes": [("Portaria", "(31) 3391-2021")],
+}
+# O nome de quem atende o telefone principal.
+RESPONSAVEL_PRINCIPAL = {
+    "padaria": "Ana", "construtora": "Recepção 4º andar", "farmacia": "Farmacêutica Júlia",
+    "transportes": "Sr. Geraldo", "restaurante": "Chef Marcos",
+}
+
 SOCIOS = [
     ("padaria", "ana", "Sócia-administradora"),
     ("padaria", "joao", "Sócio"),
@@ -163,8 +177,10 @@ def cadastrar() -> None:
 
         c = {}
         for chave, tipo, nome, apelido, fone, obs, ends in CLIENTES:
+            contatos = [DadosContato(RESPONSAVEL_PRINCIPAL.get(chave), fone)]
+            contatos += [DadosContato(r, f) for r, f in OUTROS_CONTATOS.get(chave, [])]
             cliente = rc.criar_cliente(sessao, DadosCliente(
-                tipo=tipo, nome=nome, apelido=apelido, telefone=fone,
+                tipo=tipo, nome=nome, apelido=apelido, contatos=contatos,
                 observacao=obs, enderecos=ends))
             c[chave] = cliente
             criado["clientes"].append(cliente.id)
@@ -172,16 +188,18 @@ def cadastrar() -> None:
         for empresa, pessoa, papel in SOCIOS:
             rsoc.vincular(sessao, c[empresa].id, c[pessoa].id, papel)
 
-        def servico(chave, tipo, dias, periodo, end=0, quem=0):
+        def servico(chave, tipo, dias, periodo, end=0, quem=0, recebe=0):
             cliente = c[chave]
+            contato = (cliente.contatos[recebe % len(cliente.contatos)].id
+                       if cliente.contatos else None)
             return re_.criar_evento(sessao, DadosEvento(
                 cliente_id=cliente.id, tipo_servico_id=tipo,
                 data=hoje + timedelta(days=dias), periodo=periodo,
                 endereco_id=cliente.enderecos[end].id if cliente.enderecos else None,
-                solicitante_id=pedem[quem % len(pedem)]))
+                solicitante_id=pedem[quem % len(pedem)], contato_id=contato))
 
         # Atrasados: dias que passaram sem ninguém dar baixa.
-        servico("construtora", coleta, -1, M, quem=0)
+        servico("construtora", coleta, -1, M, quem=0, recebe=2)
         servico("transportes", guia, -3, T, quem=1)
         servico("lucia", retirada, -6, T, quem=2)
         # Baixados na semana (verdes no calendário).
@@ -202,8 +220,8 @@ def cadastrar() -> None:
         re_.cancelar_evento(sessao, servico("restaurante", guia, 1, T, quem=2).id)
         # Hoje: manhã e tarde, um já baixado.
         servico("padaria", coleta, 0, M)
-        servico("construtora", guia, 0, M, end=0, quem=1)
-        servico("transportes", retirada, 0, T, quem=2)
+        servico("construtora", guia, 0, M, end=0, quem=1, recebe=1)
+        servico("transportes", retirada, 0, T, quem=2, recebe=1)
         servico("lucia", guia, 0, T)
         re_.concluir_evento(sessao, servico("ana", retirada, 0, M).id)
         # Próximos dias e semana que vem.
